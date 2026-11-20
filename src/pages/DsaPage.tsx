@@ -7,9 +7,11 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCcw,
+  Download,
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { DsaSectionAccordion } from '../components/dsa/DsaSectionAccordion';
+import { exportProgressToCsv } from '../lib/exportUtils';
 
 export const DsaPage: React.FC = () => {
   const { dsaTracks, selectedTrackId, setSelectedTrackId, data } = useAppStore();
@@ -255,6 +257,19 @@ export const DsaPage: React.FC = () => {
             <span className="hidden sm:inline">
               {expandAllOverride === true ? 'Collapse All' : 'Expand All'}
             </span>
+          </button>
+
+          {/* Download CSV Progress */}
+          <button
+            type="button"
+            onClick={() => {
+              if (data) exportProgressToCsv(data, dsaTracks);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-cream-300 bg-cream-100 px-3 py-1.5 text-xs font-semibold text-navy-800 hover:border-coral-400 hover:text-coral-600 dark:border-navy-700 dark:bg-navy-850 dark:text-cream-200 dark:hover:border-coral-500 transition shadow-xs"
+            title="Download full progress report as CSV spreadsheet"
+          >
+            <Download className="h-3.5 w-3.5 text-coral-500" />
+            <span>Export CSV</span>
           </button>
         </div>
       </div>
