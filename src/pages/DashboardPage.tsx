@@ -5,10 +5,10 @@ import { HeroBanner } from '../components/dashboard/HeroBanner';
 import { ReadinessRing } from '../components/dashboard/ReadinessRing';
 import { AreaCard } from '../components/dashboard/AreaCard';
 import { ContinueCard } from '../components/dashboard/ContinueCard';
-import { StudyTimeTracker } from '../components/dashboard/StudyTimeTracker';
-import { ActivityHeatmap } from '../components/dashboard/ActivityHeatmap';
-import { WeeklyBarChart } from '../components/dashboard/WeeklyBarChart';
 import { StreakWidget } from '../components/dashboard/StreakWidget';
+import { ActivityHeatmap } from '../components/dashboard/ActivityHeatmap';
+import { StudyTimeTracker } from '../components/dashboard/StudyTimeTracker';
+import { WeeklyBarChart } from '../components/dashboard/WeeklyBarChart';
 import { useAppStore } from '../store/useAppStore';
 
 export const DashboardPage: React.FC = () => {
@@ -20,21 +20,27 @@ export const DashboardPage: React.FC = () => {
       {/* 1. Hero / Header Panel */}
       <HeroBanner />
 
-      {/* 2. Top Metric Highlights: Readiness Ring + Streak + Continue Card */}
+      {/* 2. Top Metric Highlights: Readiness Ring + Continue Where You Left Off */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Overall Readiness Ring */}
         <div className="lg:col-span-1">
           <ReadinessRing />
         </div>
-
-        {/* Continue Where Left Off & Streak */}
-        <div className="lg:col-span-2 flex flex-col justify-between gap-6">
+        <div className="lg:col-span-2">
           <ContinueCard />
-          <StreakWidget />
         </div>
       </div>
 
-      {/* 3. Skill Areas Progress Cards (6 Segregated Focus Tracks) */}
+      {/* 3. Consistency Deck: Daily Streak + 30-Day Activity Calendar (Prominently at the top for motivation!) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-4">
+          <StreakWidget />
+        </div>
+        <div className="lg:col-span-8">
+          <ActivityHeatmap />
+        </div>
+      </div>
+
+      {/* 4. Skill Areas Progress Cards (6 Segregated Focus Tracks) */}
       <div>
         <div className="mb-4 flex items-end justify-between">
           <div>
@@ -57,10 +63,10 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Study Hours & Focus Timer (Pomodoro + Manual Prep Logging) */}
+      {/* 5. Study Hours & Focus Timer (Pomodoro + Manual Prep Logging) */}
       <StudyTimeTracker />
 
-      {/* 5. Target Internship & Hackathon Spotlight Banner */}
+      {/* 6. Target Internship & Hackathon Spotlight Banner */}
       <div className="rounded-3xl border border-cream-300/80 bg-cream-50 p-6 shadow-soft dark:border-navy-800 dark:bg-navy-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-coral-500 text-white shadow-soft">
@@ -93,11 +99,8 @@ export const DashboardPage: React.FC = () => {
         </Link>
       </div>
 
-      {/* 6. Telemetry & Analytics: 30-Day Heatmap & Weekly Velocity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ActivityHeatmap />
-        <WeeklyBarChart />
-      </div>
+      {/* 7. Weekly Velocity Bar Chart */}
+      <WeeklyBarChart />
     </div>
   );
 };

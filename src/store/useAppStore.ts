@@ -17,9 +17,11 @@ interface AppStoreState {
   dsaTracks: DsaTrack[];
   isLoading: boolean;
   selectedTrackId: string;
+  isSidebarCollapsed: boolean;
 
   // Actions
   init: () => Promise<void>;
+  toggleSidebarCollapsed: () => void;
   setDsaTracks: (tracks: DsaTrack[]) => void;
   setSelectedTrackId: (trackId: string) => void;
   toggleDsaItem: (itemId: string, currentStatus: ItemStatus) => Promise<void>;
@@ -70,6 +72,18 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   dsaTracks: (dsaData as unknown as DsaTrack[]) || [],
   isLoading: true,
   selectedTrackId: (dsaData as unknown as DsaTrack[])[0]?.id || 'track-main',
+  isSidebarCollapsed:
+    typeof window !== 'undefined'
+      ? localStorage.getItem('placement_sidebar_collapsed') === 'true'
+      : false,
+
+  toggleSidebarCollapsed: () => {
+    const next = !get().isSidebarCollapsed;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('placement_sidebar_collapsed', String(next));
+    }
+    set({ isSidebarCollapsed: next });
+  },
 
   init: async () => {
     const data = await progressRepo.getAll();

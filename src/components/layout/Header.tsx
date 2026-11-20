@@ -6,11 +6,20 @@ import {
   Sun,
   Moon,
   Settings,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 
 export const Header: React.FC = () => {
-  const { data, toggleTheme, getCurrentStreak, getOverallReadiness } = useAppStore();
+  const {
+    data,
+    toggleTheme,
+    getCurrentStreak,
+    getOverallReadiness,
+    isSidebarCollapsed,
+    toggleSidebarCollapsed,
+  } = useAppStore();
   const streak = getCurrentStreak();
   const readiness = getOverallReadiness();
   const isDark = data?.theme === 'dark';
@@ -19,8 +28,17 @@ export const Header: React.FC = () => {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-cream-300/70 bg-cream-100/90 backdrop-blur-md dark:border-navy-800 dark:bg-navy-950/90 transition-colors duration-200">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Left: Brand logo & subtitle */}
+        {/* Left: Brand logo & Sidebar Collapse Toggle */}
         <div className="flex items-center gap-3">
+          <button
+            onClick={toggleSidebarCollapsed}
+            className="hidden md:flex h-9 w-9 items-center justify-center rounded-xl border border-cream-300 bg-cream-50 text-navy-700 hover:border-coral-400 hover:text-coral-600 dark:border-navy-800 dark:bg-navy-900 dark:text-cream-300 dark:hover:border-coral-500 dark:hover:text-coral-400 transition"
+            title={isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+            aria-label="Toggle Sidebar"
+          >
+            {isSidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+
           <Link
             to="/"
             className="group flex items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 rounded-lg p-1"
