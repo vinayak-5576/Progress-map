@@ -90,11 +90,11 @@ export const DsaSubsectionAccordion: React.FC<DsaSubsectionAccordionProps> = ({
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h4 className="font-serif text-sm sm:text-base font-bold text-navy-900 dark:text-cream-100 truncate">
+              <h4 className="font-serif text-xs sm:text-base font-bold text-navy-900 dark:text-cream-100 line-clamp-2 sm:line-clamp-none break-words">
                 {subsection.title}
               </h4>
               {isAllDone && (
-                <span className="flex items-center gap-1 text-[11px] font-semibold text-coral-500">
+                <span className="flex items-center gap-1 text-[11px] font-semibold text-coral-500 shrink-0">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Completed</span>
                 </span>
@@ -104,7 +104,7 @@ export const DsaSubsectionAccordion: React.FC<DsaSubsectionAccordionProps> = ({
         </div>
 
         {/* Progress & Badge */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <div className="hidden sm:flex flex-col items-end text-xs">
             <span className="font-semibold text-navy-800 dark:text-cream-200">
               {completedCount} / {totalItems}
@@ -115,14 +115,14 @@ export const DsaSubsectionAccordion: React.FC<DsaSubsectionAccordionProps> = ({
           </div>
 
           {/* Mini progress bar */}
-          <div className="h-2 w-16 sm:w-20 overflow-hidden rounded-full bg-cream-300/70 dark:bg-navy-800">
+          <div className="h-1.5 sm:h-2 w-10 sm:w-20 overflow-hidden rounded-full bg-cream-300/70 dark:bg-navy-800">
             <div
               className="h-full rounded-full bg-coral-500 transition-all duration-300"
               style={{ width: `${percentage}%` }}
             />
           </div>
 
-          <span className="rounded-lg bg-cream-200 px-2 py-0.5 text-xs font-semibold text-navy-700 dark:bg-navy-800 dark:text-cream-300">
+          <span className="rounded-lg bg-cream-200 px-1.5 sm:px-2 py-0.5 text-xs font-semibold text-navy-700 dark:bg-navy-800 dark:text-cream-300">
             {filteredItems.length}
           </span>
         </div>

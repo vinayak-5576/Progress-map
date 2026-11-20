@@ -19,12 +19,52 @@ interface DsaItemRowProps {
   item: Item;
 }
 
+function formatStatusBadge(status: ItemStatus, completedAt?: string, startedAt?: string): string | null {
+  if (status === 'completed') {
+    if (!completedAt) return 'Done';
+    if (completedAt.toLowerCase().includes('excel')) return 'Excel Import';
+    try {
+      const d = new Date(completedAt);
+      if (isNaN(d.getTime())) return 'Done';
+      const todayStr = new Date().toISOString().split('T')[0];
+      const itemDateStr = completedAt.split('T')[0];
+      if (todayStr === itemDateStr) {
+        return 'Done Today';
+      }
+      return `Done ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    } catch {
+      return 'Done';
+    }
+  }
+
+  if (status === 'in_progress') {
+    if (!startedAt) return 'Started';
+    try {
+      const d = new Date(startedAt);
+      if (isNaN(d.getTime())) return 'Started';
+      const todayStr = new Date().toISOString().split('T')[0];
+      const itemDateStr = startedAt.split('T')[0];
+      if (todayStr === itemDateStr) {
+        return 'Started Today';
+      }
+      return `Started ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    } catch {
+      return 'Started';
+    }
+  }
+
+  return null;
+}
+
 export const DsaItemRow: React.FC<DsaItemRowProps> = ({ item }) => {
   const { data, toggleDsaItem, setDsaItemStatus, updateDsaNotes } = useAppStore();
 
   const userOverride = data?.dsaItems[item.id];
   const currentStatus: ItemStatus = userOverride?.status || item.status || 'pending';
   const savedNotes = userOverride?.notes || item.notes || '';
+  const completedAt = userOverride?.completedAt || (item.status === 'completed' ? item.completedAt : undefined);
+  const startedAt = userOverride?.startedAt || item.startedAt;
+  const statusBadgeText = formatStatusBadge(currentStatus, completedAt, startedAt);
 
   const [isNoteOpen, setIsNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState(savedNotes);
@@ -32,6 +72,13 @@ export const DsaItemRow: React.FC<DsaItemRowProps> = ({ item }) => {
 
   const handleStatusToggle = () => {
     toggleDsaItem(item.id, currentStatus);
+  };
+
+  const handleResourceClick = () => {
+    // Automatically transition to in_progress and record startedAt when user opens video or practice
+    if (currentStatus === 'pending') {
+      setDsaItemStatus(item.id, 'in_progress');
+    }
   };
 
   const handleStatusSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -130,6 +177,29 @@ export const DsaItemRow: React.FC<DsaItemRowProps> = ({ item }) => {
                 </span>
               )}
 
+              {/* Timestamp / Completion badge */}
+              {statusBadgeText && (
+                <span
+                  className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium border ${
+                    currentStatus === 'completed'
+                      ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300/40 dark:border-emerald-700/40'
+                      : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300/40 dark:border-amber-700/40'
+                  }`}
+                  title={
+                    currentStatus === 'completed'
+                      ? `Completed at: ${completedAt || 'Excel Progress'}`
+                      : `Started at: ${startedAt || 'In Progress'}`
+                  }
+                >
+                  {currentStatus === 'completed' ? (
+                    <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <Clock className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
+                  )}
+                  <span>{statusBadgeText}</span>
+                </span>
+              )}
+
               {/* Note indicator badge */}
               {savedNotes && !isNoteOpen && (
                 <button
@@ -145,92 +215,100 @@ export const DsaItemRow: React.FC<DsaItemRowProps> = ({ item }) => {
           </div>
         </div>
 
-        {/* Right: Quick Action Buttons (Links + Note toggle + Status Select) */}
-        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
-          {/* Practice link button (LeetCode / GFG / Code360) */}
-          {item.links.practice ? (
-            <a
-              href={item.links.practice}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-semibold shadow-xs transition ${platform.color}`}
-              title={item.links.practiceTitle || `Solve on ${platform.name}`}
-            >
-              <Code2 className="h-3.5 w-3.5" />
-              <span>{platform.name}</span>
-              <ExternalLink className="h-3 w-3 opacity-60" />
-            </a>
-          ) : item.links.isTheory ? (
-            <span
-              className="inline-flex items-center gap-1 rounded-xl border border-cream-300/80 bg-cream-100 px-2 py-1 text-[11px] font-medium text-navy-600 dark:border-navy-700 dark:bg-navy-850 dark:text-cream-300"
-              title="Theory topic: watch YouTube video"
-            >
-              <BookOpen className="h-3 w-3 text-coral-500" />
-              <span>Theory</span>
-            </span>
-          ) : null}
+        {/* Action Controls */}
+        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-1.5 pt-2 sm:pt-0 border-t border-cream-200/60 sm:border-t-0 dark:border-navy-800/60">
+          {/* Resource Links & Notes */}
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            {/* Practice link button (LeetCode / GFG / Code360) */}
+            {item.links.practice ? (
+              <a
+                href={item.links.practice}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleResourceClick}
+                className={`inline-flex items-center gap-1 rounded-xl border px-2 sm:px-2.5 py-1 text-xs font-semibold shadow-xs transition ${platform.color}`}
+                title={item.links.practiceTitle || `Solve on ${platform.name} (marks as In Progress)`}
+              >
+                <Code2 className="h-3.5 w-3.5 shrink-0" />
+                <span>{platform.name}</span>
+                <ExternalLink className="hidden sm:inline h-3 w-3 opacity-60 shrink-0" />
+              </a>
+            ) : item.links.isTheory ? (
+              <span
+                className="inline-flex items-center gap-1 rounded-xl border border-cream-300/80 bg-cream-100 px-2 py-1 text-[11px] font-medium text-navy-600 dark:border-navy-700 dark:bg-navy-850 dark:text-cream-300"
+                title="Theory topic: watch YouTube video"
+              >
+                <BookOpen className="h-3 w-3 text-coral-500 shrink-0" />
+                <span>Theory</span>
+              </span>
+            ) : null}
 
-          {/* YouTube Video Link button */}
-          {item.links.video ? (
-            <a
-              href={item.links.video}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/50 shadow-xs transition"
-              title="Watch video explanation"
+            {/* YouTube Video Link button */}
+            {item.links.video ? (
+              <a
+                href={item.links.video}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleResourceClick}
+                className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-2 sm:px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/50 shadow-xs transition"
+                title="Watch video explanation (marks as In Progress)"
+              >
+                <Youtube className="h-3.5 w-3.5 text-red-600 dark:text-red-400 shrink-0" />
+                <span className="hidden md:inline">Video</span>
+                <ExternalLink className="hidden sm:inline h-3 w-3 opacity-60 shrink-0" />
+              </a>
+            ) : null}
+
+            {/* Article / Editorial link button */}
+            {item.links.article ? (
+              <a
+                href={item.links.article}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleResourceClick}
+                className="inline-flex items-center gap-1 rounded-xl border border-cream-300 bg-cream-100 px-2 sm:px-2.5 py-1 text-xs font-semibold text-navy-800 hover:bg-cream-200 dark:border-navy-700 dark:bg-navy-800 dark:text-cream-200 dark:hover:bg-navy-700 shadow-xs transition"
+                title={item.links.articleTitle || 'Read editorial article (marks as In Progress)'}
+              >
+                <FileText className="h-3.5 w-3.5 text-coral-500 shrink-0" />
+                <span className="hidden md:inline">Article</span>
+                <ExternalLink className="hidden sm:inline h-3 w-3 opacity-60 shrink-0" />
+              </a>
+            ) : null}
+
+            {/* Notes Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setIsNoteOpen(!isNoteOpen)}
+              className={`inline-flex items-center gap-1 rounded-xl border px-2 sm:px-2.5 py-1 text-xs font-semibold transition ${
+                isNoteOpen || savedNotes
+                  ? 'border-coral-300 bg-coral-50 text-coral-700 dark:border-coral-800 dark:bg-coral-950/50 dark:text-coral-300'
+                  : 'border-cream-300 bg-cream-100 text-navy-700 hover:bg-cream-200 dark:border-navy-700 dark:bg-navy-800 dark:text-cream-300 dark:hover:bg-navy-700'
+              }`}
+              title={savedNotes ? 'Edit note' : 'Add personal note'}
             >
-              <Youtube className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
-              <span className="hidden md:inline">Video</span>
-              <ExternalLink className="h-3 w-3 opacity-60" />
-            </a>
-          ) : null}
+              <StickyNote className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden lg:inline">{savedNotes ? 'Notes' : '+ Note'}</span>
+            </button>
+          </div>
 
-          {/* Article / Editorial link button */}
-          {item.links.article ? (
-            <a
-              href={item.links.article}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-xl border border-cream-300 bg-cream-100 px-2.5 py-1 text-xs font-semibold text-navy-800 hover:bg-cream-200 dark:border-navy-700 dark:bg-navy-800 dark:text-cream-200 dark:hover:bg-navy-700 shadow-xs transition"
-              title={item.links.articleTitle || 'Read editorial article'}
+          {/* Status Select Dropdown */}
+          <div className="shrink-0 ml-auto sm:ml-0">
+            <select
+              value={currentStatus}
+              onChange={handleStatusSelect}
+              className={`rounded-xl border px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-coral-500 cursor-pointer ${
+                currentStatus === 'completed'
+                  ? 'border-coral-200 bg-coral-50 text-coral-700 dark:border-coral-800 dark:bg-coral-950/50 dark:text-coral-300'
+                  : currentStatus === 'in_progress'
+                  ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
+                  : 'border-cream-300 bg-cream-100 text-navy-700 dark:border-navy-700 dark:bg-navy-850 dark:text-cream-300'
+              }`}
             >
-              <FileText className="h-3.5 w-3.5 text-coral-500" />
-              <span className="hidden md:inline">Article</span>
-              <ExternalLink className="h-3 w-3 opacity-60" />
-            </a>
-          ) : null}
-
-          {/* Notes Toggle Button */}
-          <button
-            type="button"
-            onClick={() => setIsNoteOpen(!isNoteOpen)}
-            className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-semibold transition ${
-              isNoteOpen || savedNotes
-                ? 'border-coral-300 bg-coral-50 text-coral-700 dark:border-coral-800 dark:bg-coral-950/50 dark:text-coral-300'
-                : 'border-cream-300 bg-cream-100 text-navy-700 hover:bg-cream-200 dark:border-navy-700 dark:bg-navy-800 dark:text-cream-300 dark:hover:bg-navy-700'
-            }`}
-            title={savedNotes ? 'Edit note' : 'Add personal note'}
-          >
-            <StickyNote className="h-3.5 w-3.5" />
-            <span className="hidden lg:inline">{savedNotes ? 'Notes' : '+ Note'}</span>
-          </button>
-
-          {/* Status select dropdown */}
-          <select
-            value={currentStatus}
-            onChange={handleStatusSelect}
-            className={`rounded-xl border px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-coral-500 cursor-pointer ${
-              currentStatus === 'completed'
-                ? 'border-coral-200 bg-coral-50 text-coral-700 dark:border-coral-800 dark:bg-coral-950/50 dark:text-coral-300'
-                : currentStatus === 'in_progress'
-                ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
-                : 'border-cream-300 bg-cream-100 text-navy-700 dark:border-navy-700 dark:bg-navy-850 dark:text-cream-300'
-            }`}
-          >
-            <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-          </select>
+              <option value="pending">Pending</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
         </div>
       </div>
 

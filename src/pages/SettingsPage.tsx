@@ -15,6 +15,8 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { progressRepo } from '../lib/storage';
@@ -23,9 +25,10 @@ import {
   saveUserFirebaseConfig,
   FirebaseConfig,
 } from '../lib/firebase';
+import { exportProgressToExcel, exportProgressToCsv } from '../lib/exportUtils';
 
 export const SettingsPage: React.FC = () => {
-  const { data, toggleTheme, exportData, importData, resetAll } = useAppStore();
+  const { data, dsaTracks, toggleTheme, exportData, importData, resetAll } = useAppStore();
   const [importJson, setImportJson] = useState('');
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
@@ -49,6 +52,34 @@ export const SettingsPage: React.FC = () => {
   }, []);
 
   const isDark = data?.theme === 'dark';
+
+  const handleExportExcel = () => {
+    if (!data) return;
+    try {
+      exportProgressToExcel(data, dsaTracks);
+      setStatusMessage({
+        type: 'success',
+        text: 'Excel workbook (.xlsx) downloaded with DSA, Dev, AI & Study tabs!',
+      });
+    } catch (err) {
+      console.error(err);
+      setStatusMessage({ type: 'error', text: 'Failed to generate Excel export.' });
+    }
+  };
+
+  const handleExportCsv = () => {
+    if (!data) return;
+    try {
+      exportProgressToCsv(data, dsaTracks);
+      setStatusMessage({
+        type: 'success',
+        text: 'CSV spreadsheet (.csv) downloaded successfully!',
+      });
+    } catch (err) {
+      console.error(err);
+      setStatusMessage({ type: 'error', text: 'Failed to generate CSV export.' });
+    }
+  };
 
   const handleExport = async () => {
     try {
@@ -369,21 +400,44 @@ export const SettingsPage: React.FC = () => {
           </h2>
         </div>
         <p className="mt-1 text-xs text-navy-600/70 dark:text-cream-300/50">
-          Download your progress as a JSON file to transfer between devices or keep safe offline backups.
+          Export your preparation logs to Excel (.xlsx), CSV, or full JSON backup to view in spreadsheets or restore anytime.
         </p>
 
-        <div className="mt-6 flex flex-wrap items-center gap-4">
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          {/* Excel (.xlsx) Export */}
           <button
-            onClick={handleExport}
-            className="inline-flex items-center gap-2 rounded-2xl bg-coral-500 px-5 py-3 text-xs font-semibold text-white shadow-soft transition hover:bg-coral-600 hover:shadow-glow-coral"
+            onClick={handleExportExcel}
+            className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-xs font-semibold text-white shadow-soft transition hover:bg-emerald-700 hover:shadow-md"
+            title="Download multi-sheet Excel spreadsheet with DSA, Dev, AI Tools, and Study Hours"
           >
-            <Download className="h-4 w-4" />
-            <span>Download Full Progress Backup (.json)</span>
+            <FileSpreadsheet className="h-4 w-4" />
+            <span>Export to Excel (.xlsx)</span>
           </button>
 
-          <label className="inline-flex items-center gap-2 rounded-2xl border border-cream-300 bg-cream-100 px-5 py-3 text-xs font-semibold text-navy-800 cursor-pointer transition hover:bg-cream-200 dark:border-navy-700 dark:bg-navy-800 dark:text-cream-200 dark:hover:bg-navy-700">
+          {/* CSV Export */}
+          <button
+            onClick={handleExportCsv}
+            className="inline-flex items-center gap-2 rounded-2xl border border-cream-300 bg-cream-100 px-5 py-3 text-xs font-semibold text-navy-800 transition hover:bg-cream-200 dark:border-navy-700 dark:bg-navy-800 dark:text-cream-200"
+            title="Download simple CSV table (.csv)"
+          >
+            <FileText className="h-4 w-4 text-coral-500" />
+            <span>Export to CSV (.csv)</span>
+          </button>
+
+          {/* JSON Backup */}
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 rounded-2xl border border-cream-300 bg-cream-100 px-5 py-3 text-xs font-semibold text-navy-800 transition hover:bg-cream-200 dark:border-navy-700 dark:bg-navy-800 dark:text-cream-200"
+            title="Download complete raw JSON backup"
+          >
+            <Download className="h-4 w-4" />
+            <span>Full JSON Backup</span>
+          </button>
+
+          {/* Upload Backup */}
+          <label className="inline-flex items-center gap-2 rounded-2xl border border-cream-300 bg-cream-100 px-5 py-3 text-xs font-semibold text-navy-800 cursor-pointer transition hover:bg-cream-200 dark:border-navy-700 dark:bg-navy-800 dark:text-cream-200">
             <Upload className="h-4 w-4" />
-            <span>Upload Backup File</span>
+            <span>Upload JSON File</span>
             <input
               type="file"
               accept=".json,application/json"

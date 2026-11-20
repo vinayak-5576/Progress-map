@@ -65,7 +65,7 @@ export const ReadinessRing: React.FC = () => {
       </div>
 
       {/* Main Ring Gauge */}
-      <div className="relative my-4 flex h-52 items-center justify-center">
+      <div className="relative my-3 flex h-44 items-center justify-center">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -120,13 +120,13 @@ export const ReadinessRing: React.FC = () => {
         </div>
       </div>
 
-      {/* Area breakdown list */}
-      <div className="space-y-2 pt-2 border-t border-cream-200 dark:border-navy-800">
+      {/* Area breakdown list: 2-column compact grid */}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 pt-3 border-t border-cream-200 dark:border-navy-800">
         {summaries.map((s) => (
-          <div key={s.id} className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
+          <div key={s.id} className="flex items-center justify-between text-xs min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0 truncate">
               <span
-                className="h-2 w-2 rounded-full"
+                className="h-2 w-2 rounded-full shrink-0"
                 style={{
                   backgroundColor:
                     s.id === 'dsa'
@@ -142,14 +142,9 @@ export const ReadinessRing: React.FC = () => {
                       : '#1E3252',
                 }}
               />
-              <span className="font-medium text-navy-800 dark:text-cream-200">{s.title}</span>
-              <span className="text-[10px] text-navy-600/50 dark:text-cream-300/40">
-                ({Math.round(s.weight * 100)}% wt)
-              </span>
+              <span className="font-medium text-navy-800 dark:text-cream-200 truncate">{s.title}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-navy-900 dark:text-cream-100">{s.percentage}%</span>
-            </div>
+            <span className="font-bold text-navy-900 dark:text-cream-100 shrink-0 ml-1.5">{s.percentage}%</span>
           </div>
         ))}
       </div>

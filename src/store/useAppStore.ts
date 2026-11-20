@@ -12,6 +12,21 @@ import {
 import { progressRepo } from '../lib/storage';
 import dsaData from '../data/dsa.json';
 
+export interface TrackRecommendation {
+  id: string; // 'dsa' | 'development' | 'ai-tools' | 'cs-fundamentals' | 'projects'
+  tag: string;
+  areaTitle: string;
+  title: string;
+  subtitle: string;
+  route: string;
+  actionLabel: string;
+  progressPct: number;
+  stats: string;
+  isStarted: boolean;
+  type: 'in_progress' | 'next_up' | 'recommended';
+  upcoming?: Array<{ title: string; subtitle?: string }>;
+}
+
 interface AppStoreState {
   data: AppStateData | null;
   dsaTracks: DsaTrack[];
@@ -57,6 +72,11 @@ interface AppStoreState {
     route: string;
     tag: string;
     actionLabel?: string;
+  };
+  getActiveTracksRecommendations: () => {
+    activeTracks: TrackRecommendation[];
+    exploreNextTracks: TrackRecommendation[];
+    allCoreTracks: TrackRecommendation[];
   };
   get30DayActivity: () => { date: string; count: number; dayName: string }[];
   getWeeklyActivity: () => { day: string; date: string; count: number }[];
@@ -538,6 +558,240 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       tag: 'DSA',
       actionLabel: 'Open DSA',
     };
+  },
+
+  getActiveTracksRecommendations: () => {
+    const { data, dsaTracks } = get();
+    if (!data) {
+      return { activeTracks: [], exploreNextTracks: [], allCoreTracks: [] };
+    }
+
+    // 1. Flatten all DSA items
+    interface FlatDsaItem {
+      id: string;
+      title: string;
+      sectionTitle: string;
+      subsectionTitle: string;
+      status: ItemStatus;
+    }
+
+    const flatDsa: FlatDsaItem[] = [];
+    let dsaCompleted = 0;
+    dsaTracks.forEach((track) => {
+      track.sections.forEach((sec) => {
+        sec.subsections.forEach((sub) => {
+          sub.items.forEach((it) => {
+            const override = data.dsaItems[it.id];
+            const effectiveStatus = override ? override.status : it.status;
+            if (effectiveStatus === 'completed') dsaCompleted++;
+            flatDsa.push({
+              id: it.id,
+              title: it.title,
+              sectionTitle: sec.title,
+              subsectionTitle: sub.title,
+              status: effectiveStatus,
+            });
+          });
+        });
+      });
+    });
+
+    const dsaTotal = Math.max(1, flatDsa.length);
+    const dsaPct = Math.round((dsaCompleted / dsaTotal) * 100);
+    const inProgressDsa = flatDsa.find((x) => x.status === 'in_progress');
+
+    let lastCompletedIdx = -1;
+    flatDsa.forEach((x, idx) => {
+      if (x.status === 'completed') lastCompletedIdx = idx;
+    });
+
+    const pendingQueue = flatDsa.filter((x, idx) => x.status === 'pending' && idx > lastCompletedIdx);
+    const dsaUpcoming = (pendingQueue.length > 1 ? pendingQueue.slice(1, 3) : flatDsa.filter(x => x.status === 'pending').slice(1, 3)).map((it) => ({
+      title: it.title,
+      subtitle: `${it.sectionTitle} > ${it.subsectionTitle}`,
+    }));
+
+    let dsaRec: TrackRecommendation;
+    if (inProgressDsa) {
+      dsaRec = {
+        id: 'dsa',
+        tag: 'DSA',
+        areaTitle: 'DSA Problem Matrix',
+        title: inProgressDsa.title,
+        subtitle: `In Progress • ${inProgressDsa.sectionTitle} > ${inProgressDsa.subsectionTitle}`,
+        route: '/dsa',
+        actionLabel: 'Resume Problem',
+        progressPct: dsaPct,
+        stats: `${dsaCompleted} / ${dsaTotal} solved (${dsaPct}%)`,
+        isStarted: true,
+        type: 'in_progress',
+        upcoming: dsaUpcoming,
+      };
+    } else if (dsaCompleted > 0) {
+      const nextPending =
+        flatDsa.slice(lastCompletedIdx + 1).find((x) => x.status === 'pending') ||
+        flatDsa.find((x) => x.status === 'pending');
+
+      dsaRec = {
+        id: 'dsa',
+        tag: 'DSA',
+        areaTitle: 'DSA Problem Matrix',
+        title: nextPending ? nextPending.title : 'All DSA Problems Completed! 🎉',
+        subtitle: nextPending
+          ? `Next Up in Syllabus • ${nextPending.sectionTitle} > ${nextPending.subsectionTitle}`
+          : 'Ready for Mock Assessments',
+        route: '/dsa',
+        actionLabel: 'Solve Problem',
+        progressPct: dsaPct,
+        stats: `${dsaCompleted} / ${dsaTotal} solved (${dsaPct}%)`,
+        isStarted: true,
+        type: 'next_up',
+        upcoming: dsaUpcoming,
+      };
+    } else {
+      const firstPending = flatDsa[0];
+      dsaRec = {
+        id: 'dsa',
+        tag: 'DSA',
+        areaTitle: 'DSA Problem Matrix',
+        title: firstPending ? firstPending.title : 'Basics of Programming',
+        subtitle: 'Start Here • 1. Basics of programming > 1.1 Time & Space Complexity',
+        route: '/dsa',
+        actionLabel: 'Start Practice',
+        progressPct: 0,
+        stats: `0 / ${dsaTotal} solved`,
+        isStarted: false,
+        type: 'recommended',
+        upcoming: flatDsa.slice(1, 3).map((it) => ({ title: it.title, subtitle: it.subsectionTitle })),
+      };
+    }
+
+    // 2. Development Roadmap
+    const devMilestones = Object.values(data.milestones)
+      .filter((m) => m.areaId === 'development')
+      .sort((a, b) => a.order - b.order);
+
+    let devTotalConcepts = 0;
+    let devDoneConcepts = 0;
+    devMilestones.forEach((m) => {
+      devTotalConcepts += m.concepts.length;
+      devDoneConcepts += m.concepts.filter((c) => c.done).length;
+    });
+
+    const devPct = Math.round((devDoneConcepts / Math.max(1, devTotalConcepts)) * 100);
+    const devStarted = devDoneConcepts > 0;
+
+    let devRec: TrackRecommendation;
+    if (devStarted) {
+      const activeMilestone =
+        devMilestones.find((m) => m.concepts.some((c) => !c.done) || !m.proof.done) ||
+        devMilestones[0];
+      const nextConcept = activeMilestone?.concepts.find((c) => !c.done);
+      const devUpcoming = (activeMilestone?.concepts.filter((c) => !c.done).slice(1, 3) || []).map((c) => ({
+        title: c.label,
+        subtitle: `Milestone ${activeMilestone?.order}`,
+      }));
+
+      devRec = {
+        id: 'development',
+        tag: 'Development',
+        areaTitle: 'Full Stack Development',
+        title: nextConcept ? nextConcept.label : `Submit Proof: ${activeMilestone?.title}`,
+        subtitle: `Milestone ${activeMilestone?.order} (${activeMilestone?.title})`,
+        route: '/development',
+        actionLabel: 'Resume Milestone',
+        progressPct: devPct,
+        stats: `${devDoneConcepts} / ${devTotalConcepts} concepts cleared (${devPct}%)`,
+        isStarted: true,
+        type: 'in_progress',
+        upcoming: devUpcoming,
+      };
+    } else {
+      devRec = {
+        id: 'development',
+        tag: 'Development',
+        areaTitle: 'Full Stack Development',
+        title: devMilestones[0]?.concepts[0]?.label || 'Semantic HTML5 & Modern CSS',
+        subtitle: 'Milestone 1 • Web & JS/TS Foundations',
+        route: '/development',
+        actionLabel: 'Start Development',
+        progressPct: 0,
+        stats: `0 / ${devTotalConcepts} concepts cleared`,
+        isStarted: false,
+        type: 'recommended',
+        upcoming: (devMilestones[0]?.concepts.slice(1, 3) || []).map((c) => ({
+          title: c.label,
+          subtitle: 'Milestone 1',
+        })),
+      };
+    }
+
+    // 3. AI & Tools Track
+    const aiMilestones = Object.values(data.milestones)
+      .filter((m) => m.areaId === 'ai-tools')
+      .sort((a, b) => a.order - b.order);
+
+    let aiTotalConcepts = 0;
+    let aiDoneConcepts = 0;
+    aiMilestones.forEach((m) => {
+      aiTotalConcepts += m.concepts.length;
+      aiDoneConcepts += m.concepts.filter((c) => c.done).length;
+    });
+
+    const aiPct = Math.round((aiDoneConcepts / Math.max(1, aiTotalConcepts)) * 100);
+    const aiStarted = aiDoneConcepts > 0;
+
+    let aiRec: TrackRecommendation;
+    if (aiStarted) {
+      const activeMilestone =
+        aiMilestones.find((m) => m.concepts.some((c) => !c.done) || !m.proof.done) ||
+        aiMilestones[0];
+      const nextConcept = activeMilestone?.concepts.find((c) => !c.done);
+      const aiUpcoming = (activeMilestone?.concepts.filter((c) => !c.done).slice(1, 3) || []).map((c) => ({
+        title: c.label,
+        subtitle: `Milestone ${activeMilestone?.order}`,
+      }));
+
+      aiRec = {
+        id: 'ai-tools',
+        tag: 'AI Tools',
+        areaTitle: 'AI & Agentic Frameworks',
+        title: nextConcept ? nextConcept.label : `Submit Proof: ${activeMilestone?.title}`,
+        subtitle: `Milestone ${activeMilestone?.order} (${activeMilestone?.title})`,
+        route: '/ai-tools',
+        actionLabel: 'Resume AI Milestone',
+        progressPct: aiPct,
+        stats: `${aiDoneConcepts} / ${aiTotalConcepts} concepts cleared (${aiPct}%)`,
+        isStarted: true,
+        type: 'in_progress',
+        upcoming: aiUpcoming,
+      };
+    } else {
+      aiRec = {
+        id: 'ai-tools',
+        tag: 'AI Tools',
+        areaTitle: 'AI & Agentic Frameworks',
+        title: aiMilestones[0]?.concepts[0]?.label || 'LLM Foundations & Prompt Engineering',
+        subtitle: 'Milestone 1 • Prompting & LLM Architecture',
+        route: '/ai-tools',
+        actionLabel: 'Explore AI Tools',
+        progressPct: 0,
+        stats: `0 / ${aiTotalConcepts} concepts cleared`,
+        isStarted: false,
+        type: 'recommended',
+        upcoming: (aiMilestones[0]?.concepts.slice(1, 3) || []).map((c) => ({
+          title: c.label,
+          subtitle: 'Milestone 1',
+        })),
+      };
+    }
+
+    // Continue Where You Left Off strictly includes ONLY DSA, Development, and AI & Tools
+    const coreTracks = [dsaRec, devRec, aiRec];
+    const activeTracks = coreTracks.filter((t) => t.isStarted);
+    const exploreNextTracks = coreTracks.filter((t) => !t.isStarted);
+
+    return { activeTracks, exploreNextTracks, allCoreTracks: coreTracks };
   },
 
   get30DayActivity: () => {
