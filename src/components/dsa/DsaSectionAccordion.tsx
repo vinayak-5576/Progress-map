@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronDown, ChevronRight, CheckCircle2, Folder, FolderOpen } from 'lucide-react';
 import { DsaSection } from '../../types';
 import { DsaSubsectionAccordion } from './DsaSubsectionAccordion';
@@ -11,6 +11,7 @@ interface DsaSectionAccordionProps {
   statusFilter: string;
   hideCompleted: boolean;
   defaultExpanded?: boolean;
+  expandAllOverride?: boolean | null;
 }
 
 export const DsaSectionAccordion: React.FC<DsaSectionAccordionProps> = ({
@@ -19,10 +20,15 @@ export const DsaSectionAccordion: React.FC<DsaSectionAccordionProps> = ({
   searchQuery,
   statusFilter,
   hideCompleted,
-  defaultExpanded = true,
+  defaultExpanded = false,
+  expandAllOverride = null,
 }) => {
   const { data } = useAppStore();
   const [isOpen, setIsOpen] = useState(defaultExpanded);
+
+  useEffect(() => {
+    setIsOpen(defaultExpanded);
+  }, [defaultExpanded]);
 
   // Compute total items and completed items across all subsections in this section
   let totalItems = 0;
@@ -41,6 +47,37 @@ export const DsaSectionAccordion: React.FC<DsaSectionAccordionProps> = ({
 
   const percentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
   const isSectionDone = totalItems > 0 && completedItems === totalItems;
+
+  // Determine which subsection is currently active / running
+  const activeSubId = useMemo(() => {
+    let inProgressSubId: string | null = null;
+    let firstUnfinishedSubId: string | null = null;
+
+    for (const sub of section.subsections) {
+      let isSubDone = true;
+      let hasSubInProgress = false;
+
+      for (const item of sub.items) {
+        const userOverride = data?.dsaItems[item.id];
+        const status = userOverride?.status || item.status;
+        if (status === 'in_progress') {
+          hasSubInProgress = true;
+        }
+        if (status !== 'completed') {
+          isSubDone = false;
+        }
+      }
+
+      if (hasSubInProgress && !inProgressSubId) {
+        inProgressSubId = sub.id;
+      }
+      if (!isSubDone && !firstUnfinishedSubId) {
+        firstUnfinishedSubId = sub.id;
+      }
+    }
+
+    return inProgressSubId || firstUnfinishedSubId;
+  }, [section.subsections, data?.dsaItems]);
 
   return (
     <div className="rounded-3xl border border-cream-300/80 bg-cream-50 shadow-soft overflow-hidden dark:border-navy-800 dark:bg-navy-900 transition-colors">
@@ -105,15 +142,26 @@ export const DsaSectionAccordion: React.FC<DsaSectionAccordionProps> = ({
       {/* Subsections list */}
       {isOpen && (
         <div className="p-4 sm:p-5 pt-0 space-y-3 border-t border-cream-200/70 dark:border-navy-800/80">
-          {section.subsections.map((sub) => (
-            <DsaSubsectionAccordion
-              key={sub.id}
-              subsection={sub}
-              searchQuery={searchQuery}
-              statusFilter={statusFilter}
-              hideCompleted={hideCompleted}
-            />
-          ))}
+          {section.subsections.map((sub) => {
+            const isSubActive = sub.id === activeSubId;
+            const shouldExpandSub =
+              expandAllOverride !== null
+                ? expandAllOverride
+                : searchQuery.trim()
+                ? true
+                : isSubActive;
+
+            return (
+              <DsaSubsectionAccordion
+                key={sub.id}
+                subsection={sub}
+                searchQuery={searchQuery}
+                statusFilter={statusFilter}
+                hideCompleted={hideCompleted}
+                defaultExpanded={shouldExpandSub}
+              />
+            );
+          })}
         </div>
       )}
     </div>

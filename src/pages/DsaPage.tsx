@@ -17,9 +17,44 @@ export const DsaPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'in_progress' | 'pending'>('all');
   const [hideCompleted, setHideCompleted] = useState(false);
-  const [expandAll, setExpandAll] = useState(true);
+  const [expandAllOverride, setExpandAllOverride] = useState<boolean | null>(null);
 
   const currentTrack = dsaTracks.find((t) => t.id === selectedTrackId) || dsaTracks[0];
+
+  // Find which section is currently active / running
+  const activeSectionId = useMemo(() => {
+    if (!currentTrack) return null;
+
+    let inProgressSecId: string | null = null;
+    let firstUnfinishedSecId: string | null = null;
+
+    for (const sec of currentTrack.sections) {
+      let isSecDone = true;
+      let hasSecInProgress = false;
+
+      for (const sub of sec.subsections) {
+        for (const item of sub.items) {
+          const userOverride = data?.dsaItems[item.id];
+          const status = userOverride?.status || item.status;
+          if (status === 'in_progress') {
+            hasSecInProgress = true;
+          }
+          if (status !== 'completed') {
+            isSecDone = false;
+          }
+        }
+      }
+
+      if (hasSecInProgress && !inProgressSecId) {
+        inProgressSecId = sec.id;
+      }
+      if (!isSecDone && !firstUnfinishedSecId) {
+        firstUnfinishedSecId = sec.id;
+      }
+    }
+
+    return inProgressSecId || firstUnfinishedSecId;
+  }, [currentTrack, data?.dsaItems]);
 
   // Calculate live statistics for current track
   const trackStats = useMemo(() => {
@@ -202,18 +237,30 @@ export const DsaPage: React.FC = () => {
           {/* Expand/Collapse All */}
           <button
             type="button"
-            onClick={() => setExpandAll(!expandAll)}
-            className="inline-flex items-center gap-1 rounded-xl border border-cream-300 bg-cream-100 px-3 py-1.5 text-xs font-semibold text-navy-700 hover:bg-cream-200 dark:border-navy-700 dark:bg-navy-850 dark:text-cream-300"
-            title={expandAll ? 'Collapse All Sections' : 'Expand All Sections'}
+            onClick={() => {
+              if (expandAllOverride === true) {
+                setExpandAllOverride(false);
+              } else {
+                setExpandAllOverride(true);
+              }
+            }}
+            className="inline-flex items-center gap-1 rounded-xl border border-cream-300 bg-cream-100 px-3 py-1.5 text-xs font-semibold text-navy-700 hover:bg-cream-200 dark:border-navy-700 dark:bg-navy-850 dark:text-cream-300 transition"
+            title={expandAllOverride === true ? 'Collapse All Sections' : 'Expand All Sections'}
           >
-            {expandAll ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">{expandAll ? 'Collapse' : 'Expand'}</span>
+            {expandAllOverride === true ? (
+              <ChevronUp className="h-3.5 w-3.5 text-coral-500" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden sm:inline">
+              {expandAllOverride === true ? 'Collapse All' : 'Expand All'}
+            </span>
           </button>
         </div>
       </div>
 
       {/* Active filter summary pill */}
-      {(searchQuery || statusFilter !== 'all' || hideCompleted) && (
+      {(searchQuery || statusFilter !== 'all' || hideCompleted || expandAllOverride !== null) && (
         <div className="flex items-center justify-between px-2 text-xs text-navy-600/80 dark:text-cream-300/60">
           <div className="flex items-center gap-2">
             <span>Filtering by:</span>
@@ -232,31 +279,50 @@ export const DsaPage: React.FC = () => {
                 Hidden completed
               </span>
             )}
+            {expandAllOverride !== null && (
+              <span className="rounded-md bg-cream-200 px-2 py-0.5 font-semibold text-navy-800 dark:bg-navy-800 dark:text-cream-200">
+                View: {expandAllOverride ? 'All Expanded' : 'All Collapsed'}
+              </span>
+            )}
           </div>
 
           <button
-            onClick={handleResetFilters}
+            onClick={() => {
+              handleResetFilters();
+              setExpandAllOverride(null);
+            }}
             className="inline-flex items-center gap-1 font-semibold text-coral-500 hover:underline"
           >
             <RotateCcw className="h-3 w-3" />
-            <span>Reset filters</span>
+            <span>Reset filters & smart view</span>
           </button>
         </div>
       )}
 
       {/* 4. Collapsible Sections Tree */}
       <div className="space-y-4">
-        {currentTrack?.sections.map((sec, idx) => (
-          <DsaSectionAccordion
-            key={`${currentTrack.id}-${sec.id}-${expandAll}`}
-            section={sec}
-            sectionIndex={idx}
-            searchQuery={searchQuery}
-            statusFilter={statusFilter}
-            hideCompleted={hideCompleted}
-            defaultExpanded={expandAll}
-          />
-        ))}
+        {currentTrack?.sections.map((sec, idx) => {
+          const isSecActive = sec.id === activeSectionId;
+          const shouldExpandSec =
+            expandAllOverride !== null
+              ? expandAllOverride
+              : searchQuery.trim()
+              ? true
+              : isSecActive;
+
+          return (
+            <DsaSectionAccordion
+              key={`${currentTrack.id}-${sec.id}-${expandAllOverride ?? 'smart'}`}
+              section={sec}
+              sectionIndex={idx}
+              searchQuery={searchQuery}
+              statusFilter={statusFilter}
+              hideCompleted={hideCompleted}
+              defaultExpanded={shouldExpandSec}
+              expandAllOverride={expandAllOverride}
+            />
+          );
+        })}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { DsaSubsection } from '../../types';
 import { DsaItemRow } from './DsaItemRow';
@@ -17,10 +17,14 @@ export const DsaSubsectionAccordion: React.FC<DsaSubsectionAccordionProps> = ({
   searchQuery,
   statusFilter,
   hideCompleted,
-  defaultExpanded = true,
+  defaultExpanded = false,
 }) => {
   const { data } = useAppStore();
   const [isOpen, setIsOpen] = useState(defaultExpanded);
+
+  useEffect(() => {
+    setIsOpen(defaultExpanded);
+  }, [defaultExpanded]);
 
   // Compute completed count for this subsection
   const totalItems = subsection.items.length;
