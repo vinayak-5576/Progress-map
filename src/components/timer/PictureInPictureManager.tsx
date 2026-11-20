@@ -23,13 +23,6 @@ const CATEGORIES: StudyCategory[] = [
   'General',
 ];
 
-const PRESETS = [
-  { label: '25m', minutes: 25 },
-  { label: '50m', minutes: 50 },
-  { label: '5m', minutes: 5 },
-  { label: 'Stop', minutes: 0 },
-];
-
 function formatDisplay(secs: number): string {
   const hrs = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
@@ -46,6 +39,7 @@ export const PictureInPictureManager: React.FC = () => {
   const {
     isRunning,
     mode,
+    customMinutes,
     category,
     secondsLeft,
     initialSeconds,
@@ -55,6 +49,7 @@ export const PictureInPictureManager: React.FC = () => {
     toggleTimer,
     resetTimer,
     setPreset,
+    setCustomMinutes,
     setCategory,
     toggleSound,
     saveSession,
@@ -64,6 +59,14 @@ export const PictureInPictureManager: React.FC = () => {
   const theme = useAppStore((s) => s.data?.theme);
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
+
+  const presets = [
+    { label: '25m', minutes: 25 },
+    { label: '50m', minutes: 50 },
+    { label: '5m', minutes: 5 },
+    { label: `${customMinutes || 30}m`, minutes: customMinutes || 30 },
+    { label: 'Stop', minutes: 0 },
+  ];
 
   const pipWin = getPipWindow();
 
@@ -198,11 +201,17 @@ export const PictureInPictureManager: React.FC = () => {
       </div>
 
       {/* Preset Chips */}
-      <div className="grid grid-cols-4 gap-1 p-0.5 rounded-xl bg-cream-200/60 dark:bg-navy-850">
-        {PRESETS.map((p) => (
+      <div className="grid grid-cols-5 gap-1 p-0.5 rounded-xl bg-cream-200/60 dark:bg-navy-850">
+        {presets.map((p) => (
           <button
             key={p.label}
-            onClick={() => setPreset(p.minutes)}
+            onClick={() => {
+              if (p.minutes === customMinutes && p.minutes !== 25 && p.minutes !== 50 && p.minutes !== 5 && p.minutes !== 0) {
+                setCustomMinutes(customMinutes);
+              } else {
+                setPreset(p.minutes);
+              }
+            }}
             className={`rounded-lg py-1 text-[10px] font-bold text-center transition ${
               mode === p.minutes
                 ? 'bg-white text-navy-900 shadow-xs dark:bg-navy-700 dark:text-cream-100'

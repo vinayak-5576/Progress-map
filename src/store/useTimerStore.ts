@@ -4,7 +4,8 @@ import { useAppStore } from './useAppStore';
 
 interface TimerStoreState {
   isRunning: boolean;
-  mode: number; // 25, 50, 5, or 0 (stopwatch)
+  mode: number; // 25, 50, 5, or 0 (stopwatch), or custom minutes
+  customMinutes: number;
   category: StudyCategory;
   secondsLeft: number;
   initialSeconds: number;
@@ -14,6 +15,7 @@ interface TimerStoreState {
 
   // Actions
   setPreset: (minutes: number) => void;
+  setCustomMinutes: (minutes: number) => void;
   setCategory: (category: StudyCategory) => void;
   startTimer: () => void;
   pauseTimer: () => void;
@@ -33,6 +35,19 @@ let pipWindowInstance: Window | null = null;
 export function getPipWindow(): Window | null {
   return pipWindowInstance;
 }
+
+const initialCustomMins = (() => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const saved = localStorage.getItem('prep_timer_custom_mins');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed > 0 && parsed <= 360) return parsed;
+      }
+    } catch {}
+  }
+  return 30;
+})();
 
 function playCompletionChime() {
   try {
@@ -65,6 +80,7 @@ function playCompletionChime() {
 export const useTimerStore = create<TimerStoreState>((set, get) => ({
   isRunning: false,
   mode: 25,
+  customMinutes: initialCustomMins,
   category: 'DSA',
   secondsLeft: 25 * 60,
   initialSeconds: 25 * 60,
@@ -77,6 +93,24 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     const secs = minutes === 0 ? 0 : minutes * 60;
     set({
       mode: minutes,
+      secondsLeft: secs,
+      initialSeconds: secs,
+      isFinished: false,
+    });
+  },
+
+  setCustomMinutes: (minutes: number) => {
+    const safeMins = Math.max(1, Math.min(360, Math.round(minutes)));
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem('prep_timer_custom_mins', String(safeMins));
+      } catch {}
+    }
+    get().pauseTimer();
+    const secs = safeMins * 60;
+    set({
+      customMinutes: safeMins,
+      mode: safeMins,
       secondsLeft: secs,
       initialSeconds: secs,
       isFinished: false,

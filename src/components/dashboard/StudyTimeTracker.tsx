@@ -13,6 +13,7 @@ import {
   Volume2,
   VolumeX,
   ExternalLink,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useTimerStore } from '../../store/useTimerStore';
@@ -25,13 +26,6 @@ const CATEGORIES: StudyCategory[] = [
   'CS Fundamentals',
   'Projects',
   'General',
-];
-
-const PRESETS = [
-  { label: '25m Focus', minutes: 25 },
-  { label: '50m Deep', minutes: 50 },
-  { label: '5m Break', minutes: 5 },
-  { label: 'Stopwatch', minutes: 0 },
 ];
 
 function formatMinutes(mins: number): string {
@@ -74,7 +68,9 @@ export const StudyTimeTracker: React.FC = () => {
     initialSeconds,
     isFinished,
     soundEnabled,
+    customMinutes,
     setPreset: handleSelectPreset,
+    setCustomMinutes,
     setCategory: setTimerCategory,
     toggleTimer: handleToggleTimer,
     resetTimer: handleResetTimer,
@@ -90,6 +86,10 @@ export const StudyTimeTracker: React.FC = () => {
   const totalMins = getTotalStudyMinutes();
   const breakdown = getStudyCategoryBreakdown();
   const recentSessions = getRecentStudySessions(6);
+
+  // Custom Timer State
+  const [isCustomOpen, setIsCustomOpen] = useState(false);
+  const [customInput, setCustomInput] = useState(String(customMinutes || 30));
 
   // Manual Log Modal State
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
@@ -339,21 +339,155 @@ export const StudyTimeTracker: React.FC = () => {
               </div>
 
               {/* Mode Selector Chips */}
-              <div className="grid grid-cols-4 gap-1.5 p-1 rounded-2xl bg-cream-200/60 dark:bg-navy-850 mb-5">
-                {PRESETS.map((p) => (
-                  <button
-                    key={p.label}
-                    onClick={() => handleSelectPreset(p.minutes)}
-                    className={`rounded-xl py-1.5 text-[11px] font-bold transition text-center ${
-                      timerMode === p.minutes
-                        ? 'bg-white text-navy-900 shadow-xs dark:bg-navy-700 dark:text-cream-100'
-                        : 'text-navy-600 hover:text-navy-900 dark:text-cream-400 dark:hover:text-cream-200'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
+              <div className="grid grid-cols-5 gap-1 sm:gap-1.5 p-1 rounded-2xl bg-cream-200/60 dark:bg-navy-850 mb-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomOpen(false);
+                    handleSelectPreset(25);
+                  }}
+                  className={`rounded-xl py-1.5 text-[11px] font-bold transition text-center ${
+                    timerMode === 25
+                      ? 'bg-white text-navy-900 shadow-xs dark:bg-navy-700 dark:text-cream-100'
+                      : 'text-navy-600 hover:text-navy-900 dark:text-cream-400 dark:hover:text-cream-200'
+                  }`}
+                >
+                  25m Focus
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomOpen(false);
+                    handleSelectPreset(50);
+                  }}
+                  className={`rounded-xl py-1.5 text-[11px] font-bold transition text-center ${
+                    timerMode === 50
+                      ? 'bg-white text-navy-900 shadow-xs dark:bg-navy-700 dark:text-cream-100'
+                      : 'text-navy-600 hover:text-navy-900 dark:text-cream-400 dark:hover:text-cream-200'
+                  }`}
+                >
+                  50m Deep
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomOpen(false);
+                    handleSelectPreset(5);
+                  }}
+                  className={`rounded-xl py-1.5 text-[11px] font-bold transition text-center ${
+                    timerMode === 5
+                      ? 'bg-white text-navy-900 shadow-xs dark:bg-navy-700 dark:text-cream-100'
+                      : 'text-navy-600 hover:text-navy-900 dark:text-cream-400 dark:hover:text-cream-200'
+                  }`}
+                >
+                  5m Break
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomOpen(false);
+                    handleSelectPreset(0);
+                  }}
+                  className={`rounded-xl py-1.5 text-[11px] font-bold transition text-center ${
+                    timerMode === 0
+                      ? 'bg-white text-navy-900 shadow-xs dark:bg-navy-700 dark:text-cream-100'
+                      : 'text-navy-600 hover:text-navy-900 dark:text-cream-400 dark:hover:text-cream-200'
+                  }`}
+                >
+                  Stopwatch
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (timerMode !== customMinutes) {
+                      setCustomMinutes(customMinutes);
+                    }
+                    setIsCustomOpen(!isCustomOpen);
+                  }}
+                  className={`rounded-xl py-1.5 text-[11px] font-bold transition text-center flex items-center justify-center gap-1 ${
+                    timerMode === customMinutes && timerMode !== 25 && timerMode !== 50 && timerMode !== 5 && timerMode !== 0
+                      ? 'bg-coral-500 text-white shadow-xs'
+                      : isCustomOpen
+                      ? 'bg-cream-300 dark:bg-navy-700 text-navy-900 dark:text-cream-100'
+                      : 'text-coral-600 hover:text-coral-700 dark:text-coral-400 dark:hover:text-coral-300'
+                  }`}
+                  title="Click to customize pomodoro duration"
+                >
+                  <span>{customMinutes}m</span>
+                  <SlidersHorizontal className="h-3 w-3 opacity-75 shrink-0" />
+                </button>
               </div>
+
+              {/* Custom Pomodoro Duration Drawer */}
+              {isCustomOpen && (
+                <div className="mb-4 p-3 rounded-2xl border border-coral-200 bg-coral-50/60 dark:border-coral-900/40 dark:bg-coral-950/30 animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-navy-800 dark:text-cream-200 flex items-center gap-1.5">
+                      <SlidersHorizontal className="h-3.5 w-3.5 text-coral-500" />
+                      <span>Set Custom Pomodoro Time:</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomOpen(false)}
+                      className="text-navy-400 hover:text-navy-600 dark:text-cream-400 text-xs px-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
+                    {[10, 15, 20, 30, 40, 45, 60, 90, 120].map((mins) => (
+                      <button
+                        key={mins}
+                        type="button"
+                        onClick={() => {
+                          setCustomMinutes(mins);
+                          setCustomInput(String(mins));
+                          setIsCustomOpen(false);
+                        }}
+                        className={`rounded-lg px-2 py-1 text-xs font-semibold border transition ${
+                          customMinutes === mins && timerMode === mins
+                            ? 'border-coral-500 bg-coral-500 text-white shadow-xs'
+                            : 'border-cream-300 bg-white text-navy-800 hover:border-coral-300 dark:border-navy-700 dark:bg-navy-850 dark:text-cream-200'
+                        }`}
+                      >
+                        {mins}m
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Manual Minutes Input */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const val = parseInt(customInput, 10);
+                      if (!isNaN(val) && val > 0 && val <= 360) {
+                        setCustomMinutes(val);
+                        setIsCustomOpen(false);
+                      }
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <input
+                      type="number"
+                      min="1"
+                      max="360"
+                      value={customInput}
+                      onChange={(e) => setCustomInput(e.target.value)}
+                      className="w-24 rounded-xl border border-cream-300 bg-white px-2.5 py-1 text-xs font-bold text-navy-900 focus:outline-none focus:ring-1 focus:ring-coral-500 dark:border-navy-700 dark:bg-navy-850 dark:text-cream-100"
+                      placeholder="Minutes"
+                    />
+                    <span className="text-xs font-medium text-navy-600 dark:text-cream-300">minutes</span>
+                    <button
+                      type="submit"
+                      className="ml-auto rounded-xl bg-coral-500 px-3 py-1 text-xs font-bold text-white hover:bg-coral-600 transition shadow-xs"
+                    >
+                      Apply Time
+                    </button>
+                  </form>
+                </div>
+              )}
 
               {/* Category Selector for Timer */}
               <div className="mb-6">
@@ -374,20 +508,30 @@ export const StudyTimeTracker: React.FC = () => {
               </div>
 
               {/* Big Digital Timer Display */}
-              <div className="relative flex flex-col items-center justify-center py-6 rounded-3xl bg-cream-100/60 dark:bg-navy-950/50 border border-cream-300/40 dark:border-navy-800/60">
+              <div
+                onClick={() => {
+                  if (!isRunning) {
+                    setIsCustomOpen(!isCustomOpen);
+                  }
+                }}
+                className={`relative flex flex-col items-center justify-center py-6 rounded-3xl bg-cream-100/60 dark:bg-navy-950/50 border border-cream-300/40 dark:border-navy-800/60 ${
+                  !isRunning ? 'cursor-pointer hover:border-coral-400/60 group' : ''
+                }`}
+                title={!isRunning ? 'Click to customize timer duration' : undefined}
+              >
                 <div
                   className={`font-serif text-5xl sm:text-6xl font-bold tracking-tight transition-colors ${
                     isFinished
                       ? 'text-coral-500 animate-pulse'
                       : isRunning
                       ? 'text-navy-900 dark:text-cream-100'
-                      : 'text-navy-800/80 dark:text-cream-200/80'
+                      : 'text-navy-800/80 dark:text-cream-200/80 group-hover:text-coral-600'
                   }`}
                 >
                   {formatTimerDisplay(secondsLeft)}
                 </div>
 
-                <div className="mt-2 text-xs font-semibold text-navy-600/70 dark:text-cream-300/60">
+                <div className="mt-2 text-xs font-semibold text-navy-600/70 dark:text-cream-300/60 flex items-center gap-1.5">
                   {isFinished ? (
                     <span className="text-coral-500 font-bold">Session Complete! 🎉</span>
                   ) : timerMode === 0 ? (
@@ -395,7 +539,12 @@ export const StudyTimeTracker: React.FC = () => {
                   ) : isRunning ? (
                     'Deep Focus in Progress...'
                   ) : (
-                    'Ready to Start'
+                    <>
+                      <span>Ready to Start</span>
+                      <span className="text-[10px] text-coral-500 font-normal group-hover:underline">
+                        • Click to customize ({timerMode}m)
+                      </span>
+                    </>
                   )}
                 </div>
 
