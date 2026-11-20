@@ -115,6 +115,23 @@ export interface AreaProgressSummary {
   icon: string;
 }
 
+export type StudyCategory =
+  | 'DSA'
+  | 'Development'
+  | 'AI & Tools'
+  | 'CS Fundamentals'
+  | 'Projects'
+  | 'General';
+
+export interface StudySession {
+  id: string;
+  date: string; // YYYY-MM-DD
+  minutes: number;
+  category: StudyCategory;
+  note?: string;
+  createdAt: string; // ISO timestamp
+}
+
 export interface AppStateData {
   dsaItems: Record<string, {
     status: ItemStatus;
@@ -128,4 +145,5 @@ export interface AppStateData {
   applications: JobApplication[];
   activityLogs: Record<string, number>; // date "YYYY-MM-DD" -> count
   theme: 'light' | 'dark';
+  studySessions?: StudySession[];
 }

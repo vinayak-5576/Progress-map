@@ -6,6 +6,8 @@ import {
   JobApplication,
   AreaProgressSummary,
   DsaTrack,
+  StudyCategory,
+  StudySession,
 } from '../types';
 import { progressRepo } from '../lib/storage';
 import dsaData from '../data/dsa.json';
@@ -36,6 +38,8 @@ interface AppStoreState {
   addApplication: (app: Omit<JobApplication, 'id'>) => Promise<void>;
   updateApplication: (id: string, updates: Partial<JobApplication>) => Promise<void>;
   deleteApplication: (id: string) => Promise<void>;
+  addStudySession: (session: Omit<StudySession, 'id' | 'createdAt'>) => Promise<void>;
+  deleteStudySession: (id: string) => Promise<void>;
   toggleTheme: () => Promise<void>;
   exportData: () => Promise<string>;
   importData: (jsonStr: string) => Promise<boolean>;
@@ -53,6 +57,11 @@ interface AppStoreState {
   };
   get30DayActivity: () => { date: string; count: number; dayName: string }[];
   getWeeklyActivity: () => { day: string; date: string; count: number }[];
+  getTodayStudyMinutes: () => number;
+  getWeekStudyMinutes: () => number;
+  getTotalStudyMinutes: () => number;
+  getStudyCategoryBreakdown: () => { category: StudyCategory; minutes: number; percentage: number }[];
+  getRecentStudySessions: (limit?: number) => StudySession[];
 }
 
 export const useAppStore = create<AppStoreState>((set, get) => ({
@@ -159,6 +168,14 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
 
   deleteApplication: async (id) => {
     await progressRepo.deleteApplication(id);
+  },
+
+  addStudySession: async (session) => {
+    await progressRepo.addStudySession(session);
+  },
+
+  deleteStudySession: async (id) => {
+    await progressRepo.deleteStudySession(id);
   },
 
   toggleTheme: async () => {
@@ -437,5 +454,75 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     }
 
     return result;
+  },
+
+  getTodayStudyMinutes: () => {
+    const sessions = get().data?.studySessions || [];
+    const today = new Date().toISOString().split('T')[0];
+    return sessions
+      .filter((s) => s.date === today)
+      .reduce((acc, curr) => acc + (curr.minutes || 0), 0);
+  },
+
+  getWeekStudyMinutes: () => {
+    const sessions = get().data?.studySessions || [];
+    const today = new Date();
+    const weekAgo = new Date();
+    weekAgo.setDate(today.getDate() - 7);
+    const weekAgoStr = weekAgo.toISOString().split('T')[0];
+
+    return sessions
+      .filter((s) => s.date >= weekAgoStr)
+      .reduce((acc, curr) => acc + (curr.minutes || 0), 0);
+  },
+
+  getTotalStudyMinutes: () => {
+    const sessions = get().data?.studySessions || [];
+    return sessions.reduce((acc, curr) => acc + (curr.minutes || 0), 0);
+  },
+
+  getStudyCategoryBreakdown: () => {
+    const sessions = get().data?.studySessions || [];
+    const totals: Record<StudyCategory, number> = {
+      DSA: 0,
+      Development: 0,
+      'AI & Tools': 0,
+      'CS Fundamentals': 0,
+      Projects: 0,
+      General: 0,
+    };
+
+    let total = 0;
+    sessions.forEach((s) => {
+      const cat = (s.category || 'General') as StudyCategory;
+      if (totals[cat] !== undefined) {
+        totals[cat] += s.minutes || 0;
+      } else {
+        totals.General += s.minutes || 0;
+      }
+      total += s.minutes || 0;
+    });
+
+    const categories: StudyCategory[] = [
+      'DSA',
+      'Development',
+      'AI & Tools',
+      'CS Fundamentals',
+      'Projects',
+      'General',
+    ];
+
+    return categories.map((cat) => ({
+      category: cat,
+      minutes: totals[cat],
+      percentage: total > 0 ? Math.round((totals[cat] / total) * 100) : 0,
+    }));
+  },
+
+  getRecentStudySessions: (limit = 10) => {
+    const sessions = get().data?.studySessions || [];
+    return [...sessions]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit);
   },
 }));

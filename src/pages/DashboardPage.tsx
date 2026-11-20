@@ -5,6 +5,7 @@ import { HeroBanner } from '../components/dashboard/HeroBanner';
 import { ReadinessRing } from '../components/dashboard/ReadinessRing';
 import { AreaCard } from '../components/dashboard/AreaCard';
 import { ContinueCard } from '../components/dashboard/ContinueCard';
+import { StudyTimeTracker } from '../components/dashboard/StudyTimeTracker';
 import { ActivityHeatmap } from '../components/dashboard/ActivityHeatmap';
 import { WeeklyBarChart } from '../components/dashboard/WeeklyBarChart';
 import { StreakWidget } from '../components/dashboard/StreakWidget';
@@ -56,7 +57,10 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Target Internship & Hackathon Spotlight Banner */}
+      {/* 4. Study Hours & Focus Timer (Pomodoro + Manual Prep Logging) */}
+      <StudyTimeTracker />
+
+      {/* 5. Target Internship & Hackathon Spotlight Banner */}
       <div className="rounded-3xl border border-cream-300/80 bg-cream-50 p-6 shadow-soft dark:border-navy-800 dark:bg-navy-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-coral-500 text-white shadow-soft">
@@ -89,7 +93,7 @@ export const DashboardPage: React.FC = () => {
         </Link>
       </div>
 
-      {/* 5. Telemetry & Analytics: 30-Day Heatmap & Weekly Velocity */}
+      {/* 6. Telemetry & Analytics: 30-Day Heatmap & Weekly Velocity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ActivityHeatmap />
         <WeeklyBarChart />

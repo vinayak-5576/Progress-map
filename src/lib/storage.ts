@@ -5,6 +5,7 @@ import {
   ProjectItem,
   JobApplication,
   DsaTrack,
+  StudySession,
 } from '../types';
 import dsaData from '../data/dsa.json';
 import { initialDevelopmentMilestones } from '../data/development';
@@ -30,6 +31,8 @@ export interface ProgressRepo {
   updateApplication(id: string, updates: Partial<JobApplication>): Promise<void>;
   deleteApplication(id: string): Promise<void>;
   recordActivity(date?: string, countIncrement?: number): Promise<void>;
+  addStudySession(session: Omit<StudySession, 'id' | 'createdAt'>): Promise<StudySession>;
+  deleteStudySession(id: string): Promise<void>;
   exportData(): Promise<string>;
   importData(jsonString: string): Promise<boolean>;
   resetAll(): Promise<void>;
@@ -77,6 +80,7 @@ export function getDefaultInitialState(): AppStateData {
     projects: initialProjects,
     applications: initialApplications,
     activityLogs: {},
+    studySessions: [],
     theme: 'light',
   };
 }
@@ -115,6 +119,7 @@ export class HybridProgressRepo implements ProgressRepo {
           ...getDefaultInitialState().milestones,
           ...(parsed.milestones || {}),
         },
+        studySessions: parsed.studySessions || [],
       };
       return state;
     } catch (e) {
@@ -182,6 +187,7 @@ export class HybridProgressRepo implements ProgressRepo {
                 ...(currentLocal.milestones || {}),
                 ...(remoteData.milestones || {}),
               },
+              studySessions: remoteData.studySessions || currentLocal.studySessions || [],
               activityLogs: {
                 ...(currentLocal.activityLogs || {}),
                 ...(remoteData.activityLogs || {}),
@@ -446,6 +452,38 @@ export class HybridProgressRepo implements ProgressRepo {
     });
   }
 
+  async addStudySession(session: Omit<StudySession, 'id' | 'createdAt'>): Promise<StudySession> {
+    const state = this.cachedState;
+    const newSession: StudySession = {
+      ...session,
+      id: `study-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      createdAt: new Date().toISOString(),
+    };
+    const currentSessions = state.studySessions || [];
+    const nextSessions = [newSession, ...currentSessions];
+
+    // Automatically record activity for that day on the heatmap
+    const nextActivity = { ...state.activityLogs };
+    nextActivity[session.date] = (nextActivity[session.date] || 0) + 1;
+
+    this.saveState({
+      ...state,
+      studySessions: nextSessions,
+      activityLogs: nextActivity,
+    });
+    return newSession;
+  }
+
+  async deleteStudySession(id: string): Promise<void> {
+    const state = this.cachedState;
+    const currentSessions = state.studySessions || [];
+    const nextSessions = currentSessions.filter((s) => s.id !== id);
+    this.saveState({
+      ...state,
+      studySessions: nextSessions,
+    });
+  }
+
   async exportData(): Promise<string> {
     return JSON.stringify(this.cachedState, null, 2);
   }
@@ -457,6 +495,7 @@ export class HybridProgressRepo implements ProgressRepo {
       const nextState = {
         ...getDefaultInitialState(),
         ...parsed,
+        studySessions: parsed.studySessions || [],
       };
       this.saveState(nextState);
       return true;
