@@ -168,15 +168,28 @@ export class HybridProgressRepo implements ProgressRepo {
           if (snapshot.exists()) {
             this.isCloudActive = true;
             const remoteData = snapshot.data() as Partial<AppStateData>;
+            const currentLocal = this.readLocalState();
             const merged: AppStateData = {
               ...getDefaultInitialState(),
+              ...currentLocal,
               ...remoteData,
+              dsaItems: {
+                ...currentLocal.dsaItems,
+                ...(remoteData.dsaItems || {}),
+              },
               milestones: {
                 ...getDefaultInitialState().milestones,
+                ...(currentLocal.milestones || {}),
                 ...(remoteData.milestones || {}),
+              },
+              activityLogs: {
+                ...(currentLocal.activityLogs || {}),
+                ...(remoteData.activityLogs || {}),
               },
             };
             this.writeLocalState(merged);
+          } else {
+            this.pushToFirestore(this.cachedState);
           }
         },
         (err) => {
@@ -202,7 +215,7 @@ export class HybridProgressRepo implements ProgressRepo {
 
     try {
       const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID);
-      // Remove any undefined values by serializing
+      // Remove any undefined values by serializing cleanly
       const cleanData = JSON.parse(JSON.stringify(state));
       await setDoc(docRef, cleanData, { merge: true });
       this.isCloudActive = true;

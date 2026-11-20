@@ -8,12 +8,24 @@ export interface FirebaseConfig {
   storageBucket?: string;
   messagingSenderId?: string;
   appId: string;
+  measurementId?: string;
 }
 
 const STORAGE_FIREBASE_CONFIG_KEY = 'prep_tracker_firebase_config';
 
+// Default project configuration connected to Vinayak's Firebase Project
+const DEFAULT_FIREBASE_CONFIG: FirebaseConfig = {
+  apiKey: "AIzaSyB_bH_TgMB8r9QoQNUMSAWFc6Z2gVy0gNM",
+  authDomain: "progressmap-7ee2b.firebaseapp.com",
+  projectId: "progressmap-7ee2b",
+  storageBucket: "progressmap-7ee2b.firebasestorage.app",
+  messagingSenderId: "626402547147",
+  appId: "1:626402547147:web:c170fbb674bbf21297d24e",
+  measurementId: "G-2BQE21DDPR",
+};
+
 export function getActiveFirebaseConfig(): FirebaseConfig | null {
-  // 1. Check Vite Environment variables (Vercel)
+  // 1. Check Vite Environment variables (optional override)
   const envApiKey = import.meta.env.VITE_FIREBASE_API_KEY;
   const envProjectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
 
@@ -28,7 +40,7 @@ export function getActiveFirebaseConfig(): FirebaseConfig | null {
     };
   }
 
-  // 2. Check LocalStorage fallback for user-entered config
+  // 2. Check LocalStorage fallback for user-entered custom config
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       const raw = localStorage.getItem(STORAGE_FIREBASE_CONFIG_KEY);
@@ -43,7 +55,8 @@ export function getActiveFirebaseConfig(): FirebaseConfig | null {
     }
   }
 
-  return null;
+  // 3. Fallback to default project configuration
+  return DEFAULT_FIREBASE_CONFIG;
 }
 
 export function saveUserFirebaseConfig(config: FirebaseConfig | null): void {
