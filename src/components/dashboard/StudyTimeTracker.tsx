@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   Clock,
   Play,
@@ -12,8 +12,10 @@ import {
   X,
   Volume2,
   VolumeX,
+  ExternalLink,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { useTimerStore } from '../../store/useTimerStore';
 import { StudyCategory, StudySession } from '../../types';
 
 const CATEGORIES: StudyCategory[] = [
@@ -41,29 +43,16 @@ function formatMinutes(mins: number): string {
   return `${m}m`;
 }
 
-function playBeep() {
-  try {
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
-    const ctx = new AudioContextClass();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+function formatTimerDisplay(secs: number): string {
+  const hrs = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15); // A5
-
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start();
-    osc.stop(ctx.currentTime + 0.6);
-  } catch {
-    // Audio might be blocked by browser policy without user gesture
+  if (hrs > 0) {
+    return `${pad(hrs)}:${pad(m)}:${pad(s)}`;
   }
+  return `${pad(m)}:${pad(s)}`;
 }
 
 export const StudyTimeTracker: React.FC = () => {
@@ -76,6 +65,25 @@ export const StudyTimeTracker: React.FC = () => {
     getStudyCategoryBreakdown,
     getRecentStudySessions,
   } = useAppStore();
+
+  const {
+    isRunning,
+    mode: timerMode,
+    category: timerCategory,
+    secondsLeft,
+    initialSeconds,
+    isFinished,
+    soundEnabled,
+    setPreset: handleSelectPreset,
+    setCategory: setTimerCategory,
+    toggleTimer: handleToggleTimer,
+    resetTimer: handleResetTimer,
+    toggleSound,
+    saveSession,
+    isPipActive,
+    openPip,
+    closePip,
+  } = useTimerStore();
 
   const todayMins = getTodayStudyMinutes();
   const weekMins = getWeekStudyMinutes();
@@ -92,117 +100,10 @@ export const StudyTimeTracker: React.FC = () => {
   const [logNote, setLogNote] = useState('');
   const [logSuccessMessage, setLogSuccessMessage] = useState('');
 
-  // Pomodoro Timer State
-  const [timerMode, setTimerMode] = useState<number>(25); // 0 means stopwatch
-  const [timerCategory, setTimerCategory] = useState<StudyCategory>('DSA');
-  const [secondsLeft, setSecondsLeft] = useState<number>(25 * 60);
-  const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
-  const [isFinished, setIsFinished] = useState<boolean>(false);
-
-  const initialSecondsRef = useRef<number>(25 * 60);
-  const intervalRef = useRef<number | null>(null);
-
-  // Set Timer Preset
-  const handleSelectPreset = (minutes: number) => {
-    setIsRunning(false);
-    setIsFinished(false);
-    setTimerMode(minutes);
-    if (minutes === 0) {
-      // Stopwatch mode
-      setSecondsLeft(0);
-      initialSecondsRef.current = 0;
-    } else {
-      // Countdown mode
-      setSecondsLeft(minutes * 60);
-      initialSecondsRef.current = minutes * 60;
-    }
-  };
-
-  // Timer Tick Logic (Clock-accurate using Date.now())
-  useEffect(() => {
-    if (isRunning) {
-      const startMs = Date.now();
-      const startingSecs = secondsLeft;
-
-      intervalRef.current = window.setInterval(() => {
-        const elapsedSecs = Math.floor((Date.now() - startMs) / 1000);
-
-        if (timerMode === 0) {
-          // Stopwatch counts up
-          setSecondsLeft(startingSecs + elapsedSecs);
-        } else {
-          // Countdown mode
-          const remaining = startingSecs - elapsedSecs;
-          if (remaining <= 0) {
-            setSecondsLeft(0);
-            setIsRunning(false);
-            setIsFinished(true);
-            if (soundEnabled) playBeep();
-            if (intervalRef.current) clearInterval(intervalRef.current);
-          } else {
-            setSecondsLeft(remaining);
-          }
-        }
-      }, 500);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    }
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [isRunning, timerMode, soundEnabled]);
-
-  const handleToggleTimer = () => {
-    if (!isRunning) {
-      if (isFinished) {
-        // Reset if finished before starting again
-        setSecondsLeft(timerMode * 60);
-        setIsFinished(false);
-      }
-      setIsRunning(true);
-    } else {
-      setIsRunning(false);
-    }
-  };
-
-  const handleResetTimer = () => {
-    setIsRunning(false);
-    setIsFinished(false);
-    if (timerMode === 0) {
-      setSecondsLeft(0);
-    } else {
-      setSecondsLeft(timerMode * 60);
-    }
-  };
-
-  // Save elapsed time from timer directly to daily study log
+  // Save session from Timer
   const handleSaveTimerSession = async () => {
-    let completedMinutes = 0;
-    if (timerMode === 0) {
-      // Stopwatch: secondsLeft is elapsed seconds
-      completedMinutes = Math.max(1, Math.round(secondsLeft / 60));
-    } else {
-      // Countdown: elapsed = initial - remaining
-      const elapsedSecs = initialSecondsRef.current - secondsLeft;
-      completedMinutes = Math.max(1, Math.round(elapsedSecs / 60));
-    }
-
-    await addStudySession({
-      date: new Date().toISOString().split('T')[0],
-      minutes: completedMinutes,
-      category: timerCategory,
-      note: `Timer session (${timerMode === 0 ? 'Stopwatch' : `${timerMode}m Focus`})`,
-    });
-
-    setIsRunning(false);
-    setIsFinished(false);
-    handleResetTimer();
-    setLogSuccessMessage(`Logged ${formatMinutes(completedMinutes)} of ${timerCategory}!`);
+    const mins = await saveSession();
+    setLogSuccessMessage(`Logged ${formatMinutes(mins)} of ${timerCategory}!`);
     setTimeout(() => setLogSuccessMessage(''), 3000);
   };
 
@@ -230,24 +131,14 @@ export const StudyTimeTracker: React.FC = () => {
     setTimeout(() => setLogSuccessMessage(''), 3500);
   };
 
-  // Format MM:SS or HH:MM:SS
-  const formatTimerDisplay = (secs: number) => {
-    const hrs = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
-    const pad = (n: number) => String(n).padStart(2, '0');
-
-    if (hrs > 0) {
-      return `${pad(hrs)}:${pad(m)}:${pad(s)}`;
-    }
-    return `${pad(m)}:${pad(s)}`;
-  };
-
   // Progress percentage for timer circle/bar
   const timerProgress =
     timerMode === 0
       ? 100
-      : Math.min(100, Math.max(0, ((initialSecondsRef.current - secondsLeft) / initialSecondsRef.current) * 100));
+      : Math.min(100, Math.max(0, ((initialSeconds - secondsLeft) / initialSeconds) * 100));
+
+  const hasElapsed =
+    timerMode === 0 ? secondsLeft > 0 : secondsLeft < initialSeconds;
 
   return (
     <div className="space-y-6">
@@ -413,7 +304,7 @@ export const StudyTimeTracker: React.FC = () => {
         <div className="lg:col-span-5">
           <div className="rounded-3xl border border-cream-300/80 bg-cream-50 p-6 shadow-soft dark:border-navy-800 dark:bg-navy-900 flex flex-col justify-between h-full">
             <div>
-              {/* Card Header */}
+              {/* Card Header with Pop-out & Controls */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Timer className="h-5 w-5 text-coral-500" />
@@ -422,13 +313,29 @@ export const StudyTimeTracker: React.FC = () => {
                   </h3>
                 </div>
 
-                <button
-                  onClick={() => setSoundEnabled(!soundEnabled)}
-                  className="rounded-xl p-1.5 text-navy-500 hover:bg-cream-200 dark:text-cream-400 dark:hover:bg-navy-800 transition"
-                  title={soundEnabled ? 'Mute chime' : 'Enable completion chime'}
-                >
-                  {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Single Always on Top Button */}
+                  <button
+                    onClick={isPipActive ? closePip : () => openPip()}
+                    className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                      isPipActive
+                        ? 'border-coral-400 bg-coral-500 text-white shadow-sm'
+                        : 'border-cream-300 bg-cream-100 text-navy-800 hover:border-coral-400 hover:text-coral-600 dark:border-navy-700 dark:bg-navy-800 dark:text-cream-200'
+                    }`}
+                    title={isPipActive ? 'Dock timer back to dashboard' : 'Float timer Always on Top (stays visible even when Chrome is minimized)'}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 text-coral-500" />
+                    <span>{isPipActive ? 'Dock Timer' : 'Always on Top'}</span>
+                  </button>
+
+                  <button
+                    onClick={toggleSound}
+                    className="rounded-xl p-1.5 text-navy-500 hover:bg-cream-200 dark:text-cream-400 dark:hover:bg-navy-800 transition"
+                    title={soundEnabled ? 'Mute chime' : 'Enable completion chime'}
+                  >
+                    {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
               {/* Mode Selector Chips */}
@@ -529,7 +436,7 @@ export const StudyTimeTracker: React.FC = () => {
               </div>
 
               {/* Log Completed / Elapsed Button */}
-              {secondsLeft !== (timerMode * 60) && (
+              {hasElapsed && (
                 <button
                   onClick={handleSaveTimerSession}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-2xl border border-coral-300 bg-coral-50 py-2.5 px-4 text-xs font-bold text-coral-700 hover:bg-coral-100 dark:border-coral-900/60 dark:bg-coral-950/40 dark:text-coral-300 dark:hover:bg-coral-900/50 transition"
@@ -565,7 +472,6 @@ export const StudyTimeTracker: React.FC = () => {
             </div>
 
             <form onSubmit={handleManualSubmit} className="mt-4 space-y-4">
-              {/* Date Input */}
               <div>
                 <label className="block text-xs font-semibold text-navy-800 dark:text-cream-200 mb-1">
                   Study Date
@@ -580,7 +486,6 @@ export const StudyTimeTracker: React.FC = () => {
                 />
               </div>
 
-              {/* Duration Inputs: Hours and Minutes */}
               <div>
                 <label className="block text-xs font-semibold text-navy-800 dark:text-cream-200 mb-1">
                   Time Spent
@@ -618,7 +523,6 @@ export const StudyTimeTracker: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Quick chip presets */}
                 <div className="flex items-center gap-2 mt-2">
                   {[
                     { label: '30m', h: '0', m: '30' },
@@ -642,7 +546,6 @@ export const StudyTimeTracker: React.FC = () => {
                 </div>
               </div>
 
-              {/* Category selector */}
               <div>
                 <label className="block text-xs font-semibold text-navy-800 dark:text-cream-200 mb-1">
                   Category Studied
@@ -665,7 +568,6 @@ export const StudyTimeTracker: React.FC = () => {
                 </div>
               </div>
 
-              {/* Optional note */}
               <div>
                 <label className="block text-xs font-semibold text-navy-800 dark:text-cream-200 mb-1">
                   Notes (Optional)
@@ -679,7 +581,6 @@ export const StudyTimeTracker: React.FC = () => {
                 />
               </div>
 
-              {/* Submit / Cancel Buttons */}
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-cream-200 dark:border-navy-800">
                 <button
                   type="button"

@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { MobileNav } from './MobileNav';
+import { PictureInPictureManager } from '../timer/PictureInPictureManager';
 import { useAppStore } from '../../store/useAppStore';
 
 export const AppLayout: React.FC = () => {
@@ -34,6 +35,7 @@ export const AppLayout: React.FC = () => {
           <Outlet />
         </main>
       </div>
+      <PictureInPictureManager />
       <MobileNav />
     </div>
   );
