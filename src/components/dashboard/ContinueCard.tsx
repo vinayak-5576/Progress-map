@@ -44,7 +44,7 @@ export const ContinueCard: React.FC = () => {
           to={rec.route}
           className="inline-flex items-center gap-2 rounded-2xl bg-coral-500 px-4 py-2 text-xs font-semibold text-white shadow-soft transition hover:bg-coral-600 hover:shadow-glow-coral"
         >
-          <span>Resume Topic</span>
+          <span>{rec.actionLabel || 'Resume Topic'}</span>
           <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>

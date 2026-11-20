@@ -54,6 +54,7 @@ interface AppStoreState {
     subtitle: string;
     route: string;
     tag: string;
+    actionLabel?: string;
   };
   get30DayActivity: () => { date: string; count: number; dayName: string }[];
   getWeeklyActivity: () => { day: string; date: string; count: number }[];
@@ -386,31 +387,133 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   },
 
   getContinueRecommendation: () => {
-    const { data } = get();
+    const { data, dsaTracks } = get();
     if (!data) {
       return {
         title: 'Start with Basics',
         subtitle: 'Begin Section 1: Basics of programming in DSA',
         route: '/dsa',
         tag: 'DSA',
+        actionLabel: 'Start Practice',
       };
     }
 
-    // Check development milestone in progress
+    // 1. Flatten all DSA items with section & subsection hierarchy
+    interface FlatDsaItem {
+      id: string;
+      title: string;
+      sectionTitle: string;
+      subsectionTitle: string;
+      status: ItemStatus;
+      completedAt?: string;
+      startedAt?: string;
+    }
+
+    const flatDsa: FlatDsaItem[] = [];
+    dsaTracks.forEach((track) => {
+      track.sections.forEach((sec) => {
+        sec.subsections.forEach((sub) => {
+          sub.items.forEach((it) => {
+            const override = data.dsaItems[it.id];
+            const effectiveStatus = override ? override.status : it.status;
+            flatDsa.push({
+              id: it.id,
+              title: it.title,
+              sectionTitle: sec.title,
+              subsectionTitle: sub.title,
+              status: effectiveStatus,
+              completedAt: override?.completedAt || (it.status === 'completed' ? it.completedAt : undefined),
+              startedAt: override?.startedAt || it.startedAt,
+            });
+          });
+        });
+      });
+    });
+
+    // Priority 1: Any item currently marked in_progress!
+    const inProgressDsa = flatDsa.filter((x) => x.status === 'in_progress');
+    if (inProgressDsa.length > 0) {
+      const active = inProgressDsa[0];
+      return {
+        title: active.title,
+        subtitle: `Currently In Progress • ${active.sectionTitle} > ${active.subsectionTitle}`,
+        route: '/dsa',
+        tag: 'DSA',
+        actionLabel: 'Resume Problem',
+      };
+    }
+
+    // Priority 2: If user has actively started Development (at least 1 concept checked done in active milestone)
     const devMilestones = Object.values(data.milestones)
       .filter((m) => m.areaId === 'development')
       .sort((a, b) => a.order - b.order);
     const activeDev = devMilestones.find(
-      (m) => m.concepts.some((c) => !c.done) || !m.proof.done
+      (m) => m.concepts.some((c) => c.done) && (!m.proof.done || m.concepts.some((c) => !c.done))
     );
-
     if (activeDev) {
-      const pendingConcept = activeDev.concepts.find((c) => !c.done);
+      const nextConcept = activeDev.concepts.find((c) => !c.done);
       return {
-        title: pendingConcept ? pendingConcept.label : `Complete Proof: ${activeDev.title}`,
+        title: nextConcept ? nextConcept.label : `Submit Proof: ${activeDev.title}`,
         subtitle: `Development: Milestone ${activeDev.order} (${activeDev.title})`,
         route: '/development',
         tag: 'Development',
+        actionLabel: 'Resume Milestone',
+      };
+    }
+
+    // Priority 3: If user has actively started AI & Tools (at least 1 concept checked done)
+    const aiMilestones = Object.values(data.milestones)
+      .filter((m) => m.areaId === 'ai-tools')
+      .sort((a, b) => a.order - b.order);
+    const activeAi = aiMilestones.find(
+      (m) => m.concepts.some((c) => c.done) && (!m.proof.done || m.concepts.some((c) => !c.done))
+    );
+    if (activeAi) {
+      const nextConcept = activeAi.concepts.find((c) => !c.done);
+      return {
+        title: nextConcept ? nextConcept.label : `Submit Proof: ${activeAi.title}`,
+        subtitle: `AI Tools: Milestone ${activeAi.order} (${activeAi.title})`,
+        route: '/ai-tools',
+        tag: 'AI Tools',
+        actionLabel: 'Resume Milestone',
+      };
+    }
+
+    // Priority 4: Next uncompleted DSA problem following user's progress!
+    // Find the last completed item in the syllabus order
+    let lastCompletedIndex = -1;
+    flatDsa.forEach((x, idx) => {
+      if (x.status === 'completed') {
+        lastCompletedIndex = idx;
+      }
+    });
+
+    if (lastCompletedIndex >= 0) {
+      // Find the first pending item after or at that index
+      const nextPending =
+        flatDsa.slice(lastCompletedIndex + 1).find((x) => x.status === 'pending') ||
+        flatDsa.find((x) => x.status === 'pending');
+
+      if (nextPending) {
+        return {
+          title: nextPending.title,
+          subtitle: `Next Up in Syllabus • ${nextPending.sectionTitle} > ${nextPending.subsectionTitle}`,
+          route: '/dsa',
+          tag: 'DSA',
+          actionLabel: 'Solve Problem',
+        };
+      }
+    }
+
+    // Priority 5: First problem in DSA syllabus
+    const firstPending = flatDsa.find((x) => x.status === 'pending') || flatDsa[0];
+    if (firstPending) {
+      return {
+        title: firstPending.title,
+        subtitle: `Start Here • ${firstPending.sectionTitle} > ${firstPending.subsectionTitle}`,
+        route: '/dsa',
+        tag: 'DSA',
+        actionLabel: 'Start Problem',
       };
     }
 
@@ -419,6 +522,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       subtitle: 'Continue daily LeetCode practice session',
       route: '/dsa',
       tag: 'DSA',
+      actionLabel: 'Open DSA',
     };
   },
 
