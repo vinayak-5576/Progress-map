@@ -9,7 +9,7 @@ export const StreakWidget: React.FC = () => {
   const activeDays = activityData.filter((d) => d.count > 0).length;
 
   return (
-    <div className="flex flex-col justify-between rounded-3xl border border-coral-200/80 bg-coral-50/50 p-6 shadow-soft dark:border-coral-900/40 dark:bg-coral-950/20 transition-colors">
+    <div className="flex flex-col justify-between rounded-3xl border border-coral-200/80 bg-coral-50/50 p-6 shadow-soft dark:border-coral-900/40 dark:bg-coral-950/20 transition-colors h-full">
       <div className="flex items-center justify-between pb-3 border-b border-coral-200/50 dark:border-coral-900/30">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-coral-500 text-white shadow-soft">

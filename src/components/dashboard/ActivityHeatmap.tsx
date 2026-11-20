@@ -26,7 +26,7 @@ export const ActivityHeatmap: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col justify-between rounded-3xl border border-cream-300/80 bg-cream-50 p-6 shadow-soft dark:border-navy-800 dark:bg-navy-900 transition-colors">
+    <div className="flex flex-col justify-between rounded-3xl border border-cream-300/80 bg-cream-50 p-6 shadow-soft dark:border-navy-800 dark:bg-navy-900 transition-colors h-full">
       <div>
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-cream-200 dark:border-navy-800">

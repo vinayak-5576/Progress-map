@@ -20,18 +20,18 @@ export const DashboardPage: React.FC = () => {
       {/* 1. Hero / Header Panel */}
       <HeroBanner />
 
-      {/* 2. Consistency & Activity Deck: Streak + 30-Day Activity Heatmap (ABOVE!) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-4">
+      {/* 2. Top Motivation Deck: Consistency Streak + 30-Day Activity Heatmap (SWAPPED TO BE ON TOP!) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+        <div className="lg:col-span-1">
           <StreakWidget />
         </div>
-        <div className="lg:col-span-8">
+        <div className="lg:col-span-2">
           <ActivityHeatmap />
         </div>
       </div>
 
       {/* 3. Overall Readiness Ring + Continue Where You Left Off */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
         <div className="lg:col-span-1">
           <ReadinessRing />
         </div>
