@@ -11,6 +11,8 @@ import { initialDevelopmentMilestones } from '../data/development';
 import { initialAiToolsMilestones } from '../data/aiTools';
 import { initialCsFundTopics } from '../data/csFundamentals';
 import { initialProjects, initialApplications } from '../data/projectsAndApps';
+import { getFirebaseDb } from './firebase';
+import { doc, onSnapshot, setDoc, getDoc, Unsubscribe } from 'firebase/firestore';
 
 export interface ProgressRepo {
   getAll(): Promise<AppStateData>;
@@ -33,11 +35,15 @@ export interface ProgressRepo {
   resetAll(): Promise<void>;
   setTheme(theme: 'light' | 'dark'): Promise<void>;
   subscribe(callback: (data: AppStateData) => void): () => void;
+  isCloudSyncActive(): boolean;
+  reconnectCloud(): void;
 }
 
 const STORAGE_KEY = 'placement_prep_tracker_v4_tracked';
+const FIRESTORE_COLLECTION = 'placement_tracker';
+const FIRESTORE_DOC_ID = 'user_progress';
 
-function getDefaultInitialState(): AppStateData {
+export function getDefaultInitialState(): AppStateData {
   const milestonesRecord: Record<string, Milestone> = {};
   [...initialDevelopmentMilestones, ...initialAiToolsMilestones].forEach((m) => {
     milestonesRecord[m.id] = m;
@@ -75,15 +81,22 @@ function getDefaultInitialState(): AppStateData {
   };
 }
 
-export class LocalStorageProgressRepo implements ProgressRepo {
+export class HybridProgressRepo implements ProgressRepo {
   private subscribers: Set<(data: AppStateData) => void> = new Set();
   private cachedState: AppStateData = getDefaultInitialState();
+  private isCloudActive = false;
+  private firestoreUnsubscribe: Unsubscribe | null = null;
 
-  private getState(): AppStateData {
-    if (this.cachedState && typeof window === 'undefined') {
-      return this.cachedState;
-    }
+  constructor() {
+    this.cachedState = this.readLocalState();
+    this.initFirebaseSync();
+  }
 
+  isCloudSyncActive(): boolean {
+    return this.isCloudActive;
+  }
+
+  private readLocalState(): AppStateData {
     if (typeof window === 'undefined' || !window.localStorage) {
       return this.cachedState;
     }
@@ -95,7 +108,7 @@ export class LocalStorageProgressRepo implements ProgressRepo {
         return this.cachedState;
       }
       const parsed = JSON.parse(raw);
-      this.cachedState = {
+      const state: AppStateData = {
         ...getDefaultInitialState(),
         ...parsed,
         milestones: {
@@ -103,14 +116,14 @@ export class LocalStorageProgressRepo implements ProgressRepo {
           ...(parsed.milestones || {}),
         },
       };
-      return this.cachedState;
+      return state;
     } catch (e) {
       console.error('Failed reading from LocalStorage:', e);
       return this.cachedState;
     }
   }
 
-  private saveState(state: AppStateData): void {
+  private writeLocalState(state: AppStateData): void {
     this.cachedState = state;
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
@@ -120,6 +133,89 @@ export class LocalStorageProgressRepo implements ProgressRepo {
       }
     }
     this.notifySubscribers(state);
+  }
+
+  private initFirebaseSync(): void {
+    const db = getFirebaseDb();
+    if (!db) {
+      this.isCloudActive = false;
+      return;
+    }
+
+    if (this.firestoreUnsubscribe) {
+      this.firestoreUnsubscribe();
+      this.firestoreUnsubscribe = null;
+    }
+
+    try {
+      const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID);
+
+      // Check if doc exists; if not, upload current local state
+      getDoc(docRef)
+        .then((snapshot) => {
+          if (!snapshot.exists()) {
+            this.pushToFirestore(this.cachedState);
+          }
+        })
+        .catch((err) => {
+          console.warn('Initial Firestore read error:', err);
+        });
+
+      // Listen in real-time
+      this.firestoreUnsubscribe = onSnapshot(
+        docRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            this.isCloudActive = true;
+            const remoteData = snapshot.data() as Partial<AppStateData>;
+            const merged: AppStateData = {
+              ...getDefaultInitialState(),
+              ...remoteData,
+              milestones: {
+                ...getDefaultInitialState().milestones,
+                ...(remoteData.milestones || {}),
+              },
+            };
+            this.writeLocalState(merged);
+          }
+        },
+        (err) => {
+          console.warn('Firestore snapshot listener error:', err);
+          this.isCloudActive = false;
+        }
+      );
+
+      this.isCloudActive = true;
+    } catch (err) {
+      console.error('Error starting Firebase sync:', err);
+      this.isCloudActive = false;
+    }
+  }
+
+  reconnectCloud(): void {
+    this.initFirebaseSync();
+  }
+
+  private async pushToFirestore(state: AppStateData): Promise<void> {
+    const db = getFirebaseDb();
+    if (!db) return;
+
+    try {
+      const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID);
+      // Remove any undefined values by serializing
+      const cleanData = JSON.parse(JSON.stringify(state));
+      await setDoc(docRef, cleanData, { merge: true });
+      this.isCloudActive = true;
+    } catch (err) {
+      console.warn('Failed pushing to Firestore:', err);
+    }
+  }
+
+  private saveState(state: AppStateData): void {
+    this.writeLocalState(state);
+    if (this.isCloudActive) {
+      this.pushToFirestore(state);
+    }
   }
 
   private notifySubscribers(state: AppStateData): void {
@@ -133,11 +229,11 @@ export class LocalStorageProgressRepo implements ProgressRepo {
   }
 
   async getAll(): Promise<AppStateData> {
-    return this.getState();
+    return this.cachedState;
   }
 
   async updateItem(itemId: string, status: ItemStatus, notes?: string): Promise<void> {
-    const state = this.getState();
+    const state = this.cachedState;
     const existing = state.dsaItems[itemId] || { status: 'pending' };
     const now = new Date().toISOString();
     const today = now.split('T')[0];
@@ -182,7 +278,7 @@ export class LocalStorageProgressRepo implements ProgressRepo {
   }
 
   async updateMilestoneConcept(milestoneId: string, conceptId: string, done: boolean): Promise<void> {
-    const state = this.getState();
+    const state = this.cachedState;
     const milestone = state.milestones[milestoneId];
     if (!milestone) return;
 
@@ -213,14 +309,14 @@ export class LocalStorageProgressRepo implements ProgressRepo {
     milestoneId: string,
     proofUpdate: { done: boolean; repoUrl?: string; liveUrl?: string }
   ): Promise<void> {
-    const state = this.getState();
+    const state = this.cachedState;
     const milestone = state.milestones[milestoneId];
     if (!milestone) return;
 
     const today = new Date().toISOString().split('T')[0];
     const nextActivity = { ...state.activityLogs };
     if (proofUpdate.done && !milestone.proof.done) {
-      nextActivity[today] = (nextActivity[today] || 0) + 2; // Extra weight for milestone proof!
+      nextActivity[today] = (nextActivity[today] || 0) + 2;
     }
 
     this.saveState({
@@ -240,7 +336,7 @@ export class LocalStorageProgressRepo implements ProgressRepo {
   }
 
   async updateCsTopic(topicId: string, completed: boolean, notes?: string): Promise<void> {
-    const state = this.getState();
+    const state = this.cachedState;
     const today = new Date().toISOString().split('T')[0];
     const nextTopics = state.csFundTopics.map((t) => {
       if (t.id === topicId) {
@@ -267,7 +363,7 @@ export class LocalStorageProgressRepo implements ProgressRepo {
   }
 
   async addProject(project: Omit<ProjectItem, 'id'>): Promise<ProjectItem> {
-    const state = this.getState();
+    const state = this.cachedState;
     const newProject: ProjectItem = {
       ...project,
       id: `proj-${Date.now()}`,
@@ -280,7 +376,7 @@ export class LocalStorageProgressRepo implements ProgressRepo {
   }
 
   async updateProject(id: string, updates: Partial<ProjectItem>): Promise<void> {
-    const state = this.getState();
+    const state = this.cachedState;
     this.saveState({
       ...state,
       projects: state.projects.map((p) => (p.id === id ? { ...p, ...updates } : p)),
@@ -288,7 +384,7 @@ export class LocalStorageProgressRepo implements ProgressRepo {
   }
 
   async deleteProject(id: string): Promise<void> {
-    const state = this.getState();
+    const state = this.cachedState;
     this.saveState({
       ...state,
       projects: state.projects.filter((p) => p.id !== id),
@@ -296,7 +392,7 @@ export class LocalStorageProgressRepo implements ProgressRepo {
   }
 
   async addApplication(app: Omit<JobApplication, 'id'>): Promise<JobApplication> {
-    const state = this.getState();
+    const state = this.cachedState;
     const newApp: JobApplication = {
       ...app,
       id: `app-${Date.now()}`,
@@ -309,7 +405,7 @@ export class LocalStorageProgressRepo implements ProgressRepo {
   }
 
   async updateApplication(id: string, updates: Partial<JobApplication>): Promise<void> {
-    const state = this.getState();
+    const state = this.cachedState;
     this.saveState({
       ...state,
       applications: state.applications.map((a) => (a.id === id ? { ...a, ...updates } : a)),
@@ -317,7 +413,7 @@ export class LocalStorageProgressRepo implements ProgressRepo {
   }
 
   async deleteApplication(id: string): Promise<void> {
-    const state = this.getState();
+    const state = this.cachedState;
     this.saveState({
       ...state,
       applications: state.applications.filter((a) => a.id !== id),
@@ -325,7 +421,7 @@ export class LocalStorageProgressRepo implements ProgressRepo {
   }
 
   async recordActivity(date?: string, countIncrement = 1): Promise<void> {
-    const state = this.getState();
+    const state = this.cachedState;
     const day = date || new Date().toISOString().split('T')[0];
     const current = state.activityLogs[day] || 0;
     this.saveState({
@@ -338,18 +434,18 @@ export class LocalStorageProgressRepo implements ProgressRepo {
   }
 
   async exportData(): Promise<string> {
-    const state = this.getState();
-    return JSON.stringify(state, null, 2);
+    return JSON.stringify(this.cachedState, null, 2);
   }
 
   async importData(jsonString: string): Promise<boolean> {
     try {
       const parsed = JSON.parse(jsonString);
       if (typeof parsed !== 'object' || !parsed) return false;
-      this.saveState({
+      const nextState = {
         ...getDefaultInitialState(),
         ...parsed,
-      });
+      };
+      this.saveState(nextState);
       return true;
     } catch {
       return false;
@@ -362,7 +458,7 @@ export class LocalStorageProgressRepo implements ProgressRepo {
   }
 
   async setTheme(theme: 'light' | 'dark'): Promise<void> {
-    const state = this.getState();
+    const state = this.cachedState;
     this.saveState({
       ...state,
       theme,
@@ -371,12 +467,12 @@ export class LocalStorageProgressRepo implements ProgressRepo {
 
   subscribe(callback: (data: AppStateData) => void): () => void {
     this.subscribers.add(callback);
-    callback(this.getState());
+    callback(this.cachedState);
     return () => {
       this.subscribers.delete(callback);
     };
   }
 }
 
-// Singleton repository instance for local progress persistence
-export const progressRepo: ProgressRepo = new LocalStorageProgressRepo();
+// Singleton repository instance
+export const progressRepo: ProgressRepo = new HybridProgressRepo();

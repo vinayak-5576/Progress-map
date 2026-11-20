@@ -17,6 +17,7 @@ export default defineConfig({
           vendor: ['react', 'react-dom', 'react-router-dom', 'zustand'],
           charts: ['recharts'],
           motion: ['framer-motion'],
+          firebase: ['firebase/app', 'firebase/firestore'],
         },
       },
     },
